@@ -1,0 +1,20 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+server/dist/
+web/dist/
+coverage/
+
+# Env
+.env
+.env.*
+
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store
+*.swp
