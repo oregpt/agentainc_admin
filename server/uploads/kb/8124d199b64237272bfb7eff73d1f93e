@@ -1,0 +1,55 @@
+# Backup and recovery
+This document is part of the Canton documentation for Catalyst Blockchain Manager.
+
+> **Source:** [https://docs.catalyst.intellecteu.com/canton/validator-mgmt/backup-and-recovery.html](https://docs.catalyst.intellecteu.com/canton/validator-mgmt/backup-and-recovery.html)
+
+Catalyst Blockchain Manager enables Backup and recovery.
+
+Throughout this user guide, we explain how to back up the Parties of your Validator and how to restore from them. This prevents your Canton Coins to be lost.
+
+## How to create a new Identity Dump?
+
+> **Important:** When deleting the old deployment be sure to set the Delete all resources false as displayed below.
+
+.Validator Removal
+image::confirm_remove_validator.png[Validator Removal, 400]
+
+To set up a new Dump go to the Validators tab to see all your Validators.
+
+.Validators
+image::createdump_validators.png[createdump_validators]
+
+Once at your validators menu, click on the dump icon of the validator you pretend to back up as displayed in the image below
+
+.create dump
+image::createdump_createDump.png[create dump, 300]
+
+A pop-up is show, asking you to provide your Validator wallet user password you stored when creating your validator.
+
+.create dump - insert wallet-user-pwd.png
+image::createdump_insertwalletuserpwd.png[createdump_insertwalletuserpwd.png, 300]
+
+---
+
+## How to restore a validator from an Identity Dump?
+
+At your validators menu click on the “Set up validator” button to open a side window.
+
+.Set up validator button
+image::validators.png[Set up validator button]
+
+Enable the option to Restore participant identities.
+
+.Dump restore option
+image::dump_restore_option.png[dump_restore_option, 300]
+
+Select your Identity Dump, and provide a new ID following the naming rules.
+
+.Restore from dump
+image::createdump_newValidator.png[Restore from dump, 300]
+
+Proceed to create your validator as for a new one.
+
+> **Important:** The fields used to config the network access must be identical to the ones created on the Validator you are trying to restore.
+
+> **Note:** Please check the Validator Management section to get more details on how to set a new validator

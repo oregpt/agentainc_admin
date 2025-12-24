@@ -17,6 +17,9 @@ export async function ensureDefaultAgent(): Promise<string> {
       id: 'default-agent',
       slug: 'default',
       name: 'Agent-in-a-Box',
+      description: 'Default Agent-in-a-Box assistant',
+      instructions:
+        'You are an Agent-in-a-Box assistant. Use the knowledge base and tools when relevant and always cite your sources when you rely on retrieved documents.',
       defaultModel: process.env.CLAUDE_DEFAULT_MODEL || 'claude-3-5-sonnet-latest',
     })
     .returning()) as any[];
@@ -80,10 +83,15 @@ export async function generateReply(
 
   const history: LLMMessage[] = [];
 
+  const agentRows = (await db.select().from(agents).where(eq(agents.id, agentId)).limit(1)) as any[];
+  const agent = agentRows[0];
+  const systemInstructions =
+    (agent?.instructions as string | null) ||
+    'You are an Agent-in-a-Box assistant. Use the provided context when it is relevant and cite sources in your answer.';
+
   history.push({
     role: 'system',
-    content:
-      'You are an Agent-in-a-Box assistant. Use the provided context when it is relevant and cite sources in your answer.',
+    content: systemInstructions,
   });
 
   for (const m of conv.messages as any[]) {
@@ -93,8 +101,13 @@ export async function generateReply(
 
   history.push({ role: 'user', content: userMessage + (rag.context ? `\n\nContext:\n${rag.context}` : '') });
 
+  const model =
+    (agent?.defaultModel as string | null) ||
+    process.env.CLAUDE_DEFAULT_MODEL ||
+    'claude-3-5-sonnet-latest';
+
   const reply = await provider.generate(history, {
-    model: process.env.CLAUDE_DEFAULT_MODEL || 'claude-3-5-sonnet-latest',
+    model,
     maxTokens: 1024,
   });
 
@@ -121,10 +134,15 @@ export async function streamReply(
 
   const history: LLMMessage[] = [];
 
+  const agentRows = (await db.select().from(agents).where(eq(agents.id, agentId)).limit(1)) as any[];
+  const agent = agentRows[0];
+  const systemInstructions =
+    (agent?.instructions as string | null) ||
+    'You are an Agent-in-a-Box assistant. Use the provided context when it is relevant and cite sources in your answer.';
+
   history.push({
     role: 'system',
-    content:
-      'You are an Agent-in-a-Box assistant. Use the provided context when it is relevant and cite sources in your answer.',
+    content: systemInstructions,
   });
 
   for (const m of conv.messages as any[]) {
@@ -134,12 +152,17 @@ export async function streamReply(
 
   history.push({ role: 'user', content: userMessage + (rag.context ? `\n\nContext:\n${rag.context}` : '') });
 
+  const model =
+    (agent?.defaultModel as string | null) ||
+    process.env.CLAUDE_DEFAULT_MODEL ||
+    'claude-3-5-sonnet-latest';
+
   let full = '';
 
   await provider.stream(
     history,
     {
-      model: process.env.CLAUDE_DEFAULT_MODEL || 'claude-3-5-sonnet-latest',
+      model,
       maxTokens: 1024,
     },
     (chunk) => {

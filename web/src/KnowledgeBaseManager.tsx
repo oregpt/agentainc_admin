@@ -72,7 +72,6 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
 
   useEffect(() => {
     loadDocuments().catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBaseUrl, agentId]);
 
   const handleCreateTextDoc = async (e: React.FormEvent) => {
@@ -180,75 +179,31 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         width: '100%',
         maxWidth: 520,
         boxSizing: 'border-box',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
+        padding: 12,
       }}
     >
-      {/* Header, inspired by AdvancedFileManager */}
-      <div
-        style={{
-          padding: '10px 12px',
-          borderBottom: '1px solid rgba(148,163,184,0.35)',
-          background:
-            'linear-gradient(135deg, rgba(59,130,246,0.06), rgba(16,185,129,0.08))',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: '999px',
-              backgroundColor: 'rgba(16,185,129,0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 14,
-            }}
-          >
-            KB
-          </div>
-          <div>
-            <div
-              style={{
-                margin: 0,
-                fontSize: 14,
-                fontWeight: 600,
-                color: 'rgb(21,128,61)',
-              }}
-            >
-              Knowledge Base Manager
-            </div>
-            <p
-              style={{
-                margin: 0,
-                fontSize: 11,
-                color: '#6b7280',
-              }}
-            >
-              Upload reference files or add text snippets that ground the assistant.
-            </p>
-          </div>
-        </div>
-        <div
+      <div style={{ marginBottom: 8 }}>
+        <h2
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            fontSize: 11,
-            color: '#64748b',
+            margin: 0,
+            marginBottom: 4,
+            fontSize: 16,
+            fontWeight: 600,
+            color: 'var(--agent-text)',
           }}
         >
-          <span>{documents.length} document{documents.length === 1 ? '' : 's'}</span>
-        </div>
+          Knowledge Base
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 12,
+            color: '#6b7280',
+          }}
+        >
+          Upload reference files or add text snippets that the agent can use when answering questions.
+        </p>
       </div>
-
-      <div style={{ padding: 12, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
       {error && (
         <div
@@ -270,7 +225,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
-          marginBottom: 8,
+          marginBottom: 12,
         }}
       >
         <form onSubmit={handleCreateTextDoc} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -367,7 +322,6 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 4,
-          marginTop: 4,
         }}
       >
         <span style={{ fontSize: 12, fontWeight: 500 }}>Documents</span>

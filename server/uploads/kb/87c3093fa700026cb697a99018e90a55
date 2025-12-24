@@ -1,0 +1,34 @@
+# Applications
+This document is part of the Canton documentation for Catalyst Blockchain Manager.
+
+> **Source:** [https://docs.catalyst.intellecteu.com/canton/network-node-mgmt/applications.html](https://docs.catalyst.intellecteu.com/canton/network-node-mgmt/applications.html)
+
+Custom applications can be deployed through the application tab. This can be any backend or frontend process, including daml apps.
+
+## How do I create an Application?
+To create an application, go to the Applications tab and click on the “Create” button to open a side window.
+
+.Create Application button
+image::applications.png[Create Application button]
+1- Provide an Application name (required).
+
+2- Fill in the main settings
+
+Applications can have the UI or Backend type. When deploying a UI application, choose between providing an image for the application or select one of the previously uploaded UI files (They can be uploaded through the Collections tab).
+
+> **Note:** When selecting a UI file to deploy, the image field will be ignored. The UI application will be served by a nginx server.
+
+* Choose Application Type
+* Choose application image (or file if UI app and not using an image)
+* Choose Port
+
+* Choose Subdomain
+** Select subdomain from existing participants
+** Choose custom subdomain
+
+* Resources allocation:
+** Requested CPU. Guaranteed CPU resources that will be allocated.
+** CPU limit. Maximum CPU resources that will be allocated.
+** Requested memory (MB). Guaranteed amount of RAM that will be allocated.
+** Memory limit (MB). The maximum amount of RAM that can be allocated.
+* You can add custom environment variables if needed.

@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AgentTheme, defaultTheme, applyTheme } from './theme';
 
+export type AgentChatWidgetMode = 'inline' | 'launcher';
+
 export interface AgentChatWidgetProps {
   apiBaseUrl: string;
   agentId?: string;
   externalUserId?: string;
   theme?: Partial<AgentTheme>;
+  mode?: AgentChatWidgetMode;
 }
 
 interface ChatMessage {
@@ -19,6 +22,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
   agentId,
   externalUserId,
   theme,
+  mode = 'inline',
 }) => {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -26,6 +30,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
+  const [isOpen, setIsOpen] = useState(mode === 'inline');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -180,26 +185,22 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
     }
   };
 
-  return (
+  const chatPanel = (
     <div
-      ref={containerRef}
-      style={{ fontFamily: 'var(--agent-font)' }}
-      className="agentinabox-root"
+      className="agentinabox-chat"
+      style={{
+        backgroundColor: 'var(--agent-bg)',
+        borderRadius: 'var(--agent-radius)',
+        border: '1px solid var(--agent-secondary)',
+        width: '100%',
+        maxWidth: 520,
+        maxHeight: 'min(540px, 90vh)',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
     >
-      <div
-        className="agentinabox-chat"
-        style={{
-          backgroundColor: 'var(--agent-bg)',
-          borderRadius: 'var(--agent-radius)',
-          border: '1px solid var(--agent-secondary)',
-          width: '100%',
-          maxWidth: 520,
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-      >
         {/* Header, inspired by Group Lead / SharedTeamChatInterface */}
         <div
           style={{
@@ -310,8 +311,8 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
         <div
           className="agentinabox-messages"
           style={{
-            maxHeight: 360,
-            minHeight: 220,
+            maxHeight: 'min(360px, 60vh)',
+            minHeight: 200,
             overflowY: 'auto',
             padding: '10px 10px 12px',
             display: 'flex',
@@ -476,7 +477,93 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
             </button>
           </div>
         </div>
+        <div
+          style={{
+            padding: '4px 10px',
+            fontSize: 10,
+            color: '#9ca3af',
+            textAlign: 'right',
+            backgroundColor: 'rgba(248,250,252,0.95)',
+            borderTop: '1px solid rgba(148,163,184,0.25)',
+          }}
+        >
+          Powered by AgenticLedger
+        </div>
       </div>
+  );
+
+  if (mode === 'launcher') {
+    return (
+      <div
+        ref={containerRef}
+        style={{
+          fontFamily: 'var(--agent-font)',
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 9999,
+          maxWidth: '100vw',
+        }}
+        className="agentinabox-root"
+      >
+        {isOpen && (
+          <div
+            style={{
+              marginBottom: 8,
+              maxWidth: 'min(420px, 100vw - 32px)',
+            }}
+          >
+            {chatPanel}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            borderRadius: 999,
+            border: 'none',
+            background:
+              'linear-gradient(135deg, var(--agent-primary), rgba(79,70,229,1))',
+            color: '#ffffff',
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: '0 18px 40px rgba(15,23,42,0.45)',
+            cursor: 'pointer',
+          }}
+        >
+          <span
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 999,
+              backgroundColor: 'rgba(15,23,42,0.9)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 11,
+            }}
+          >
+            AI
+          </span>
+          <span>{isOpen ? 'Close assistant' : 'Chat with agent'}</span>
+        </button>
+      </div>
+    );
+  }
+
+  // inline mode
+  return (
+    <div
+      ref={containerRef}
+      style={{ fontFamily: 'var(--agent-font)' }}
+      className="agentinabox-root"
+    >
+      {chatPanel}
     </div>
   );
 };
