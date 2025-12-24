@@ -3,12 +3,12 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { db } from '../db/client';
-import { agents } from '../db/schema';
+import { agents, folders, tags, documentTags, documents } from '../db/schema';
 import { ensureDefaultAgent } from '../chat/chatService';
 import { AVAILABLE_MODELS } from '../llm';
 import { capabilityService } from '../capabilities';
 import { getOrchestrator } from '../mcp-hub';
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 
 export const adminRouter = Router();
 
@@ -611,5 +611,471 @@ adminRouter.post('/mcp/execute', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to execute MCP tool' });
+  }
+});
+
+// ============================================================================
+// Knowledge Base - Folder Routes
+// ============================================================================
+
+// List all folders for an agent (returns tree structure)
+adminRouter.get('/agents/:agentId/folders', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const rows = await db
+      .select()
+      .from(folders)
+      .where(eq(folders.agentId, agentId))
+      .orderBy(folders.name);
+
+    // Build tree structure
+    const buildTree = (parentId: number | null): any[] => {
+      return rows
+        .filter((f) => f.parentId === parentId)
+        .map((folder) => ({
+          ...folder,
+          children: buildTree(folder.id),
+        }));
+    };
+
+    const tree = buildTree(null);
+    res.json({ folders: tree, flatList: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load folders' });
+  }
+});
+
+// Create a folder
+adminRouter.post('/agents/:agentId/folders', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { name, parentId } = req.body as { name: string; parentId?: number | null };
+
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    const inserted = await db
+      .insert(folders)
+      .values({
+        agentId,
+        name: name.trim(),
+        parentId: parentId || null,
+      })
+      .returning();
+
+    res.json({ folder: inserted[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create folder' });
+  }
+});
+
+// Update (rename) a folder
+adminRouter.put('/agents/:agentId/folders/:folderId', async (req, res) => {
+  try {
+    const { agentId, folderId } = req.params;
+    const { name } = req.body as { name: string };
+
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    const updated = await db
+      .update(folders)
+      .set({ name: name.trim(), updatedAt: new Date() })
+      .where(and(eq(folders.id, parseInt(folderId)), eq(folders.agentId, agentId)))
+      .returning();
+
+    if (!updated[0]) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    res.json({ folder: updated[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update folder' });
+  }
+});
+
+// Move a folder to a new parent
+adminRouter.put('/agents/:agentId/folders/:folderId/move', async (req, res) => {
+  try {
+    const { agentId, folderId } = req.params;
+    const { parentId } = req.body as { parentId: number | null };
+
+    // Prevent moving a folder into itself or its descendants
+    const folderIdNum = parseInt(folderId);
+    if (parentId === folderIdNum) {
+      return res.status(400).json({ error: 'Cannot move folder into itself' });
+    }
+
+    const updated = await db
+      .update(folders)
+      .set({ parentId: parentId || null, updatedAt: new Date() })
+      .where(and(eq(folders.id, folderIdNum), eq(folders.agentId, agentId)))
+      .returning();
+
+    if (!updated[0]) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    res.json({ folder: updated[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to move folder' });
+  }
+});
+
+// Delete a folder (documents move to parent/root)
+adminRouter.delete('/agents/:agentId/folders/:folderId', async (req, res) => {
+  try {
+    const { agentId, folderId } = req.params;
+    const folderIdNum = parseInt(folderId);
+
+    // Get the folder to find its parent
+    const folderRows = await db
+      .select()
+      .from(folders)
+      .where(and(eq(folders.id, folderIdNum), eq(folders.agentId, agentId)))
+      .limit(1);
+
+    if (!folderRows[0]) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    const parentId = folderRows[0].parentId;
+
+    // Move documents in this folder to the parent folder (or null for root)
+    await db
+      .update(documents)
+      .set({ folderId: parentId })
+      .where(eq(documents.folderId, folderIdNum));
+
+    // Move subfolders to the parent folder
+    await db
+      .update(folders)
+      .set({ parentId })
+      .where(eq(folders.parentId, folderIdNum));
+
+    // Delete the folder
+    await db.delete(folders).where(eq(folders.id, folderIdNum));
+
+    res.json({ success: true, folderId: folderIdNum });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete folder' });
+  }
+});
+
+// ============================================================================
+// Knowledge Base - Tag Routes
+// ============================================================================
+
+// List all tags for an agent
+adminRouter.get('/agents/:agentId/tags', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Get tags with document count
+    const rows = await db
+      .select({
+        id: tags.id,
+        agentId: tags.agentId,
+        name: tags.name,
+        color: tags.color,
+        createdAt: tags.createdAt,
+        documentCount: sql<number>`CAST(COUNT(${documentTags.documentId}) AS INTEGER)`,
+      })
+      .from(tags)
+      .leftJoin(documentTags, eq(tags.id, documentTags.tagId))
+      .where(eq(tags.agentId, agentId))
+      .groupBy(tags.id)
+      .orderBy(tags.name);
+
+    res.json({ tags: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load tags' });
+  }
+});
+
+// Create a tag
+adminRouter.post('/agents/:agentId/tags', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { name, color } = req.body as { name: string; color?: string };
+
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    const inserted = await db
+      .insert(tags)
+      .values({
+        agentId,
+        name: name.trim(),
+        color: color || '#6b7280',
+      })
+      .returning();
+
+    res.json({ tag: inserted[0] });
+  } catch (err: any) {
+    // Handle unique constraint violation
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Tag with this name already exists' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create tag' });
+  }
+});
+
+// Update a tag
+adminRouter.put('/agents/:agentId/tags/:tagId', async (req, res) => {
+  try {
+    const { agentId, tagId } = req.params;
+    const { name, color } = req.body as { name?: string; color?: string };
+
+    const patch: any = {};
+    if (typeof name === 'string') patch.name = name.trim();
+    if (typeof color === 'string') patch.color = color;
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const updated = await db
+      .update(tags)
+      .set(patch)
+      .where(and(eq(tags.id, parseInt(tagId)), eq(tags.agentId, agentId)))
+      .returning();
+
+    if (!updated[0]) {
+      return res.status(404).json({ error: 'Tag not found' });
+    }
+
+    res.json({ tag: updated[0] });
+  } catch (err: any) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Tag with this name already exists' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update tag' });
+  }
+});
+
+// Delete a tag
+adminRouter.delete('/agents/:agentId/tags/:tagId', async (req, res) => {
+  try {
+    const { agentId, tagId } = req.params;
+    const tagIdNum = parseInt(tagId);
+
+    // Delete the tag (cascades to document_tags junction)
+    await db
+      .delete(tags)
+      .where(and(eq(tags.id, tagIdNum), eq(tags.agentId, agentId)));
+
+    res.json({ success: true, tagId: tagIdNum });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete tag' });
+  }
+});
+
+// ============================================================================
+// Knowledge Base - Document Management Routes
+// ============================================================================
+
+// Move a document to a folder
+adminRouter.put('/agents/:agentId/documents/:docId/move', async (req, res) => {
+  try {
+    const { agentId, docId } = req.params;
+    const { folderId } = req.body as { folderId: number | null };
+
+    const updated = await db
+      .update(documents)
+      .set({ folderId: folderId || null })
+      .where(and(eq(documents.id, parseInt(docId)), eq(documents.agentId, agentId)))
+      .returning();
+
+    if (!updated[0]) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    res.json({ document: updated[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to move document' });
+  }
+});
+
+// Change document category
+adminRouter.put('/agents/:agentId/documents/:docId/category', async (req, res) => {
+  try {
+    const { agentId, docId } = req.params;
+    const { category } = req.body as { category: 'knowledge' | 'code' | 'data' };
+
+    const allowedCategories = ['knowledge', 'code', 'data'];
+    if (!allowedCategories.includes(category)) {
+      return res.status(400).json({ error: 'Invalid category. Must be: knowledge, code, or data' });
+    }
+
+    const updated = await db
+      .update(documents)
+      .set({ category })
+      .where(and(eq(documents.id, parseInt(docId)), eq(documents.agentId, agentId)))
+      .returning();
+
+    if (!updated[0]) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    res.json({ document: updated[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update category' });
+  }
+});
+
+// Update document tags (replace all tags)
+adminRouter.put('/agents/:agentId/documents/:docId/tags', async (req, res) => {
+  try {
+    const { agentId, docId } = req.params;
+    const { tagIds } = req.body as { tagIds: number[] };
+    const docIdNum = parseInt(docId);
+
+    // Verify document exists and belongs to agent
+    const docRows = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.id, docIdNum), eq(documents.agentId, agentId)))
+      .limit(1);
+
+    if (!docRows[0]) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Delete existing tags for this document
+    await db.delete(documentTags).where(eq(documentTags.documentId, docIdNum));
+
+    // Insert new tags (if any)
+    if (tagIds && tagIds.length > 0) {
+      await db.insert(documentTags).values(
+        tagIds.map((tagId) => ({
+          documentId: docIdNum,
+          tagId,
+        }))
+      );
+    }
+
+    // Get updated tags for the document
+    const updatedTags = await db
+      .select({
+        id: tags.id,
+        name: tags.name,
+        color: tags.color,
+      })
+      .from(tags)
+      .innerJoin(documentTags, eq(tags.id, documentTags.tagId))
+      .where(eq(documentTags.documentId, docIdNum));
+
+    res.json({ tags: updatedTags });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update document tags' });
+  }
+});
+
+// Get documents with folder/category/tag info
+adminRouter.get('/agents/:agentId/documents', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { folderId, category } = req.query as { folderId?: string; category?: string };
+
+    // Build query conditions
+    const conditions = [eq(documents.agentId, agentId)];
+
+    if (folderId === 'null' || folderId === 'root') {
+      conditions.push(isNull(documents.folderId));
+    } else if (folderId) {
+      conditions.push(eq(documents.folderId, parseInt(folderId)));
+    }
+
+    if (category) {
+      conditions.push(eq(documents.category, category));
+    }
+
+    const docs = await db
+      .select()
+      .from(documents)
+      .where(and(...conditions))
+      .orderBy(documents.title);
+
+    // Get tags for each document
+    const docsWithTags = await Promise.all(
+      docs.map(async (doc) => {
+        const docTags = await db
+          .select({
+            id: tags.id,
+            name: tags.name,
+            color: tags.color,
+          })
+          .from(tags)
+          .innerJoin(documentTags, eq(tags.id, documentTags.tagId))
+          .where(eq(documentTags.documentId, doc.id));
+
+        return { ...doc, tags: docTags };
+      })
+    );
+
+    res.json({ documents: docsWithTags });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load documents' });
+  }
+});
+
+// Get storage stats for an agent
+adminRouter.get('/agents/:agentId/storage', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    const stats = await db
+      .select({
+        totalDocuments: sql<number>`CAST(COUNT(*) AS INTEGER)`,
+        totalSize: sql<number>`COALESCE(SUM(${documents.size}), 0)`,
+        byCategory: sql<any>`json_object_agg(
+          COALESCE(${documents.category}, 'knowledge'),
+          CAST(COUNT(*) AS INTEGER)
+        )`,
+      })
+      .from(documents)
+      .where(eq(documents.agentId, agentId));
+
+    // Get folder count
+    const folderCount = await db
+      .select({ count: sql<number>`CAST(COUNT(*) AS INTEGER)` })
+      .from(folders)
+      .where(eq(folders.agentId, agentId));
+
+    // Get tag count
+    const tagCount = await db
+      .select({ count: sql<number>`CAST(COUNT(*) AS INTEGER)` })
+      .from(tags)
+      .where(eq(tags.agentId, agentId));
+
+    res.json({
+      storage: {
+        totalDocuments: stats[0]?.totalDocuments || 0,
+        totalSize: stats[0]?.totalSize || 0,
+        byCategory: stats[0]?.byCategory || {},
+        folderCount: folderCount[0]?.count || 0,
+        tagCount: tagCount[0]?.count || 0,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load storage stats' });
   }
 });

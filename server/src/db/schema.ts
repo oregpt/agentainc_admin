@@ -32,6 +32,8 @@ export const agents = pgTable('ai_agents', {
 export const documents = pgTable('ai_documents', {
   id: serial('id').primaryKey(),
   agentId: varchar('agent_id', { length: 64 }).notNull(),
+  folderId: integer('folder_id'), // NULL = root/unfiled, references ai_folders(id)
+  category: varchar('category', { length: 16 }).default('knowledge'), // 'knowledge', 'code', 'data'
   title: varchar('title', { length: 255 }).notNull(),
   sourceType: varchar('source_type', { length: 32 }).notNull(),
   mimeType: varchar('mime_type', { length: 128 }),
@@ -130,4 +132,35 @@ export const agentApiKeys = pgTable('ai_agent_api_keys', {
   iv: varchar('iv', { length: 32 }), // Initialization vector for AES-256-GCM
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// ============================================================================
+// Knowledge Base Enhancement - Folders, Tags, Categories
+// ============================================================================
+
+// Folder hierarchy for organizing documents (like Google Drive)
+export const folders = pgTable('ai_folders', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 64 }).notNull(),
+  parentId: integer('parent_id'), // NULL = root folder, references ai_folders(id)
+  name: varchar('name', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Tags for labeling documents (per-agent)
+export const tags = pgTable('ai_tags', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 64 }).notNull(),
+  name: varchar('name', { length: 64 }).notNull(),
+  color: varchar('color', { length: 7 }).default('#6b7280'), // hex color
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Many-to-many: documents <-> tags
+export const documentTags = pgTable('ai_document_tags', {
+  id: serial('id').primaryKey(),
+  documentId: integer('document_id').notNull(),
+  tagId: integer('tag_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });

@@ -384,6 +384,52 @@ The admin console now supports both light and dark modes:
 
 ---
 
+### Knowledge Base Manager Enhancement
+
+**Feature Added:** Full-featured document management system matching AgenticLedger-Prod
+
+The Knowledge Base Manager has been completely rewritten with professional features:
+
+**Database Changes:**
+- **New Tables:**
+  - `ai_folders` - Hierarchical folder structure with parent_id for nesting
+  - `ai_tags` - Tag definitions per agent with custom colors
+  - `ai_document_tags` - Many-to-many junction table
+- **Modified Tables:**
+  - `ai_documents` - Added `folder_id` and `category` columns
+
+**Backend Endpoints (15 new routes):**
+| Category | Endpoints |
+|----------|-----------|
+| Folders | GET/POST/PUT/DELETE `/agents/:agentId/folders` |
+| Tags | GET/POST/PUT/DELETE `/agents/:agentId/tags` |
+| Documents | PUT `/documents/:docId/move`, `/category`, `/tags` |
+| Storage | GET `/agents/:agentId/storage` |
+
+**Frontend Components:**
+- `components/FolderTree.tsx` - Collapsible nested folder tree with context menu
+- `components/DocumentList.tsx` - Sortable table with category badges and tag pills
+- `components/CategoryBadge.tsx` - Color-coded category indicators
+- `components/TagManager.tsx` - Full CRUD modal with color picker
+
+**UI Features:**
+- Two-column layout (folder tree | document list)
+- Category system: Knowledge (green), Code (purple), Data (blue)
+- Tag management with custom colors
+- Upload modal with folder/category selection
+- Move documents between folders
+- Category filter buttons
+- Storage stats footer (document count, size, folders, tags)
+
+**Files Modified:**
+- `server/src/db/schema.ts` - New tables
+- `server/src/db/init.ts` - Migrations with indexes
+- `server/src/http/adminRoutes.ts` - All folder/tag/document routes
+- `web/src/components/` - 4 new component files
+- `web/src/KnowledgeBaseManager.tsx` - Complete rewrite
+
+---
+
 ## Known Issues / TODO
 
 1. ~~**Capabilities tab shows "Failed to load"**~~ - Fixed: Added ALTER TABLE for `category` column
@@ -406,3 +452,4 @@ The admin console now supports both light and dark modes:
 | Dec 24, 2025 | Full Branding System | Additive - 25+ customizable theme properties |
 | Dec 24, 2025 | Avatar File Upload | Additive - file picker replaces URL input |
 | Dec 24, 2025 | Admin Light/Dark Mode | Additive - theme toggle with AgenticLedger-style light mode |
+| Dec 24, 2025 | Knowledge Base Enhancement | Major - folders, tags, categories, full rewrite |

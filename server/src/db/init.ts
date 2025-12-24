@@ -158,6 +158,70 @@ async function createTablesIfNotExist(): Promise<void> {
     )
   `);
 
+  // ============================================================================
+  // Knowledge Base Enhancement - Folders, Tags, Categories
+  // ============================================================================
+
+  // Folders table (hierarchical structure)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ai_folders (
+      id SERIAL PRIMARY KEY,
+      agent_id VARCHAR(64) NOT NULL,
+      parent_id INTEGER REFERENCES ai_folders(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  // Tags table
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ai_tags (
+      id SERIAL PRIMARY KEY,
+      agent_id VARCHAR(64) NOT NULL,
+      name VARCHAR(64) NOT NULL,
+      color VARCHAR(7) DEFAULT '#6b7280',
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      UNIQUE(agent_id, name)
+    )
+  `);
+
+  // Document-Tags junction table (many-to-many)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ai_document_tags (
+      id SERIAL PRIMARY KEY,
+      document_id INTEGER NOT NULL REFERENCES ai_documents(id) ON DELETE CASCADE,
+      tag_id INTEGER NOT NULL REFERENCES ai_tags(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      UNIQUE(document_id, tag_id)
+    )
+  `);
+
+  // Add folder_id and category columns to documents if they don't exist
+  await db.execute(sql`
+    ALTER TABLE ai_documents ADD COLUMN IF NOT EXISTS folder_id INTEGER REFERENCES ai_folders(id) ON DELETE SET NULL
+  `).catch(() => {});
+  await db.execute(sql`
+    ALTER TABLE ai_documents ADD COLUMN IF NOT EXISTS category VARCHAR(16) DEFAULT 'knowledge'
+  `).catch(() => {});
+
+  // Create indexes for better query performance
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_folders_agent ON ai_folders(agent_id)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_folders_parent ON ai_folders(parent_id)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_tags_agent ON ai_tags(agent_id)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_documents_folder ON ai_documents(folder_id)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_documents_category ON ai_documents(category)
+  `).catch(() => {});
+
   console.log('[db] All tables created/verified');
 }
 
