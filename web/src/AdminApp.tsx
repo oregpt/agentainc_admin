@@ -3,6 +3,12 @@ import { AgentChatWidget } from './AgentChatWidget';
 import { KnowledgeBaseManager } from './KnowledgeBaseManager';
 import { AgentTheme, defaultTheme } from './theme';
 
+interface ModelOption {
+  id: string;
+  name: string;
+  provider: string;
+}
+
 export interface AdminAppProps {
   apiBaseUrl: string;
   agentId?: string;
@@ -14,26 +20,38 @@ export const AdminApp: React.FC<AdminAppProps> = ({ apiBaseUrl, agentId, theme }
 
   const [agentName, setAgentName] = useState('Agent-in-a-Box');
   const [agentDescription, setAgentDescription] = useState('Default Agent-in-a-Box assistant');
-  const [model, setModel] = useState('claude-3-5-sonnet-latest');
+  const [model, setModel] = useState('claude-sonnet-4-20250514');
   const [systemPrompt, setSystemPrompt] = useState(
     'You are an Agent-in-a-Box assistant. Use the knowledge base and tools when relevant and always explain your reasoning clearly.'
   );
   const [loadingAgent, setLoadingAgent] = useState(false);
   const [savingAgent, setSavingAgent] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoadingAgent(true);
-        const res = await fetch(`${apiBaseUrl}/api/admin/agent`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const a = data.agent || {};
-        if (a.name) setAgentName(String(a.name));
-        if (a.description) setAgentDescription(String(a.description));
-        if (a.defaultModel) setModel(String(a.defaultModel));
-        if (a.instructions) setSystemPrompt(String(a.instructions));
+        // Fetch agent config and available models in parallel
+        const [agentRes, modelsRes] = await Promise.all([
+          fetch(`${apiBaseUrl}/api/admin/agent`),
+          fetch(`${apiBaseUrl}/api/admin/models`),
+        ]);
+
+        if (agentRes.ok) {
+          const data = await agentRes.json();
+          const a = data.agent || {};
+          if (a.name) setAgentName(String(a.name));
+          if (a.description) setAgentDescription(String(a.description));
+          if (a.defaultModel) setModel(String(a.defaultModel));
+          if (a.instructions) setSystemPrompt(String(a.instructions));
+        }
+
+        if (modelsRes.ok) {
+          const data = await modelsRes.json();
+          setAvailableModels(data.models || []);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -212,43 +230,29 @@ export const AdminApp: React.FC<AdminAppProps> = ({ apiBaseUrl, agentId, theme }
                 }}
               />
 
-              <label style={{ fontSize: 12, fontWeight: 500, marginTop: 4 }}>LLM Provider & Model</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select
-                  defaultValue="anthropic"
-                  style={{
-                    flex: 1,
-                    padding: '4px 6px',
-                    borderRadius: 6,
-                    border: '1px solid #1f2937',
-                    backgroundColor: '#020617',
-                    color: '#e5e7eb',
-                    fontSize: 12,
-                  }}
-                >
-                  <option value="anthropic">Anthropic (Claude)</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="other">Other (coming soon)</option>
-                </select>
-                <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: '4px 6px',
-                    borderRadius: 6,
-                    border: '1px solid #1f2937',
-                    backgroundColor: '#020617',
-                    color: '#e5e7eb',
-                    fontSize: 12,
-                  }}
-                >
-                  <option value="claude-3-5-sonnet-latest">claude-3-5-sonnet-latest</option>
-                  <option value="claude-3-5-haiku-latest">claude-3-5-haiku-latest</option>
-                  <option value="gpt-4o">gpt-4o (placeholder)</option>
-                  <option value="gpt-4o-mini">gpt-4o-mini (placeholder)</option>
-                </select>
-              </div>
+              <label style={{ fontSize: 12, fontWeight: 500, marginTop: 4 }}>AI Model</label>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                style={{
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: '1px solid #1f2937',
+                  backgroundColor: '#020617',
+                  color: '#e5e7eb',
+                  fontSize: 12,
+                }}
+              >
+                {availableModels.length > 0 ? (
+                  availableModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.provider})
+                    </option>
+                  ))
+                ) : (
+                  <option value={model}>{model}</option>
+                )}
+              </select>
 
               <label style={{ fontSize: 12, fontWeight: 500, marginTop: 8 }}>System Prompt</label>
               <textarea

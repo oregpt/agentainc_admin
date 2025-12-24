@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { db } from '../db/client';
 import { documentChunks, documents } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'missing-key' });
 
@@ -64,7 +64,7 @@ export async function indexDocument(agentId: string, documentId: number, content
         agentId,
         chunkIndex: index,
         content: chunk,
-        embedding: JSON.stringify(embedding),
+        embedding, // Store as number[] - Drizzle custom type handles conversion to pgvector
         tokenCount: Math.ceil(chunk.length / 4),
       };
     })
@@ -83,60 +83,40 @@ export async function search(
 ): Promise<SimilarChunk[]> {
   const queryEmbedding = await generateEmbedding(query);
 
-  const rows = await db
-    .select({
-      id: documentChunks.id,
-      documentId: documentChunks.documentId,
-      content: documentChunks.content,
-      embedding: documentChunks.embedding,
-    })
-    .from(documentChunks)
-    .where(eq(documentChunks.agentId, agentId));
+  // Format embedding for pgvector query
+  const embeddingStr = `[${queryEmbedding.join(',')}]`;
 
-  if (!rows.length) return [];
-
-  const docRows = await db.select().from(documents);
-  const docMap = new Map<number, string>();
-  for (const d of docRows as any[]) {
-    docMap.set(d.id as number, d.title as string);
-  }
-
-  function cosine(a: number[], b: number[]): number {
-    if (!a.length || a.length !== b.length) return 0;
-    let dot = 0;
-    let na = 0;
-    let nb = 0;
-    for (let i = 0; i < a.length; i++) {
-      const av = a[i] ?? 0;
-      const bv = b[i] ?? 0;
-      dot += av * bv;
-      na += av * av;
-      nb += bv * bv;
-    }
-    const mag = Math.sqrt(na) * Math.sqrt(nb);
-    return mag === 0 ? 0 : dot / mag;
-  }
-
-  const scored = rows.map((row) => {
-    const embedding = JSON.parse(row.embedding || '[]') as number[];
-    const sim = cosine(queryEmbedding, embedding);
-    return {
-      content: row.content,
-      documentId: row.documentId,
-      sourceTitle: docMap.get(row.documentId) || 'Unknown source',
-      similarity: sim,
-    } as SimilarChunk;
-  });
-
-  scored.sort((a, b) => b.similarity - a.similarity);
+  // Use pgvector cosine distance operator (<=>)
+  // Lower distance = more similar, so we ORDER BY distance ASC
+  // We fetch extra rows to account for token limiting
+  const rows = await db.execute(sql`
+    SELECT
+      c.id,
+      c.document_id,
+      c.content,
+      c.token_count,
+      d.title as source_title,
+      1 - (c.embedding <=> ${embeddingStr}::vector) as similarity
+    FROM ai_document_chunks c
+    LEFT JOIN ai_documents d ON c.document_id = d.id
+    WHERE c.agent_id = ${agentId}
+      AND c.embedding IS NOT NULL
+    ORDER BY c.embedding <=> ${embeddingStr}::vector ASC
+    LIMIT ${limit * 2}
+  `);
 
   const results: SimilarChunk[] = [];
   let tokens = 0;
 
-  for (const item of scored) {
-    const t = Math.ceil(item.content.length / 4);
+  for (const row of rows.rows as any[]) {
+    const t = row.token_count || Math.ceil((row.content?.length || 0) / 4);
     if (results.length < limit && tokens + t <= maxTokens) {
-      results.push(item);
+      results.push({
+        content: row.content,
+        documentId: row.document_id,
+        sourceTitle: row.source_title || 'Unknown source',
+        similarity: row.similarity,
+      });
       tokens += t;
     }
   }

@@ -1,11 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import AdminApp from './AdminApp';
-
-const apiBaseUrl = 'http://localhost:4000';
+import { App } from './App';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <AdminApp apiBaseUrl={apiBaseUrl} />
+    <App />
   </React.StrictMode>
 );

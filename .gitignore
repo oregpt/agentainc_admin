@@ -9,9 +9,11 @@ server/dist/
 web/dist/
 coverage/
 
-# Env
+# Env (keep .env.example)
 .env
-.env.*
+.env.local
+.env.*.local
+!.env.example
 
 # IDE/editor
 .vscode/

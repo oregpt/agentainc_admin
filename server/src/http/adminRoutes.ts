@@ -2,9 +2,161 @@ import { Router } from 'express';
 import { db } from '../db/client';
 import { agents } from '../db/schema';
 import { ensureDefaultAgent } from '../chat/chatService';
+import { AVAILABLE_MODELS } from '../llm';
+import { capabilityService } from '../capabilities';
+import { getOrchestrator } from '../mcp-hub';
 import { eq } from 'drizzle-orm';
 
 export const adminRouter = Router();
+
+// Get available LLM models
+adminRouter.get('/models', async (_req, res) => {
+  res.json({ models: AVAILABLE_MODELS });
+});
+
+// ============================================================================
+// Multi-Agent Routes
+// ============================================================================
+
+// List all agents
+adminRouter.get('/agents', async (_req, res) => {
+  try {
+    // Ensure at least one agent exists
+    await ensureDefaultAgent();
+    const rows = await db.select().from(agents);
+    res.json({ agents: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load agents' });
+  }
+});
+
+// Create a new agent
+adminRouter.post('/agents', async (req, res) => {
+  try {
+    const { name, description, instructions, defaultModel, modelMode, allowedModels } = req.body as {
+      name: string;
+      description?: string;
+      instructions?: string;
+      defaultModel?: string;
+      modelMode?: 'single' | 'multi';
+      allowedModels?: string[];
+    };
+
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Generate slug from name
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 60);
+
+    // Generate unique ID
+    const id = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
+    const inserted = (await db
+      .insert(agents)
+      .values({
+        id,
+        slug,
+        name,
+        description: description || '',
+        instructions: instructions || 'You are a helpful AI assistant.',
+        defaultModel: defaultModel || process.env.CLAUDE_DEFAULT_MODEL || 'claude-sonnet-4-20250514',
+        modelMode: modelMode || 'single',
+        allowedModels: allowedModels || null,
+      })
+      .returning()) as any[];
+
+    res.json({ agent: inserted[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create agent' });
+  }
+});
+
+// Get a specific agent
+adminRouter.get('/agents/:agentId', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const rows = (await db.select().from(agents).where(eq(agents.id, agentId)).limit(1)) as any[];
+    const agent = rows[0];
+
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    res.json({ agent });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load agent' });
+  }
+});
+
+// Update a specific agent
+adminRouter.put('/agents/:agentId', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { name, description, instructions, defaultModel, modelMode, allowedModels } = req.body as {
+      name?: string;
+      description?: string;
+      instructions?: string;
+      defaultModel?: string;
+      modelMode?: 'single' | 'multi';
+      allowedModels?: string[] | null;
+    };
+
+    const patch: any = { updatedAt: new Date() };
+    if (typeof name === 'string') patch.name = name;
+    if (typeof description === 'string') patch.description = description;
+    if (typeof instructions === 'string') patch.instructions = instructions;
+    if (typeof defaultModel === 'string') patch.defaultModel = defaultModel;
+    if (typeof modelMode === 'string') patch.modelMode = modelMode;
+    if (allowedModels !== undefined) patch.allowedModels = allowedModels;
+
+    const rows = (await db
+      .update(agents)
+      .set(patch)
+      .where(eq(agents.id, agentId))
+      .returning()) as any[];
+
+    const agent = rows[0];
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    res.json({ agent });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update agent' });
+  }
+});
+
+// Delete an agent
+adminRouter.delete('/agents/:agentId', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Prevent deleting the last agent
+    const allAgents = await db.select().from(agents);
+    if (allAgents.length <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the last agent' });
+    }
+
+    await db.delete(agents).where(eq(agents.id, agentId));
+    res.json({ success: true, agentId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete agent' });
+  }
+});
+
+// ============================================================================
+// Legacy single-agent routes (for backwards compatibility)
+// ============================================================================
 
 adminRouter.get('/agent', async (_req, res) => {
   try {
@@ -51,5 +203,192 @@ adminRouter.post('/agent', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update agent config' });
+  }
+});
+
+// ============================================================================
+// Capability Routes
+// ============================================================================
+
+// Get all capabilities (with agent enablement status)
+adminRouter.get('/capabilities', async (req, res) => {
+  try {
+    // Use agentId from query param, or fall back to default agent
+    const agentId = (req.query.agentId as string) || (await ensureDefaultAgent());
+    const caps = await capabilityService.getAgentCapabilities(agentId);
+
+    // Check which have tokens configured
+    const capsWithTokenStatus = await Promise.all(
+      caps.map(async (cap) => ({
+        ...cap,
+        hasTokens: await capabilityService.hasCapabilityTokens(agentId, cap.id),
+      }))
+    );
+
+    res.json({ capabilities: capsWithTokenStatus });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load capabilities' });
+  }
+});
+
+// Enable/disable a capability for the agent
+adminRouter.post('/capabilities/:capabilityId/toggle', async (req, res) => {
+  try {
+    const { capabilityId } = req.params;
+    const { enabled, agentId: bodyAgentId } = req.body as { enabled: boolean; agentId?: string };
+    // Use agentId from body, or fall back to default agent
+    const agentId = bodyAgentId || (await ensureDefaultAgent());
+
+    await capabilityService.setAgentCapability(agentId, capabilityId, enabled);
+
+    res.json({ success: true, capabilityId, enabled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to toggle capability' });
+  }
+});
+
+// Set tokens for a capability
+adminRouter.post('/capabilities/:capabilityId/tokens', async (req, res) => {
+  try {
+    const { capabilityId } = req.params;
+    const { token1, token2, token3, token4, token5, expiresAt, agentId: bodyAgentId } = req.body as {
+      token1?: string;
+      token2?: string;
+      token3?: string;
+      token4?: string;
+      token5?: string;
+      expiresAt?: string;
+      agentId?: string;
+    };
+    // Use agentId from body, or fall back to default agent
+    const agentId = bodyAgentId || (await ensureDefaultAgent());
+
+    await capabilityService.setCapabilityTokens(
+      agentId,
+      capabilityId,
+      { token1, token2, token3, token4, token5 },
+      expiresAt ? new Date(expiresAt) : undefined
+    );
+
+    res.json({ success: true, capabilityId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save tokens' });
+  }
+});
+
+// Delete tokens for a capability
+adminRouter.delete('/capabilities/:capabilityId/tokens', async (req, res) => {
+  try {
+    const { capabilityId } = req.params;
+    // Use agentId from query param, or fall back to default agent
+    const agentId = (req.query.agentId as string) || (await ensureDefaultAgent());
+
+    await capabilityService.deleteCapabilityTokens(agentId, capabilityId);
+
+    res.json({ success: true, capabilityId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete tokens' });
+  }
+});
+
+// Create a new custom capability (for anyapi configs)
+adminRouter.post('/capabilities', async (req, res) => {
+  try {
+    const { id, name, description, type, category, config } = req.body as {
+      id: string;
+      name: string;
+      description?: string;
+      type: 'mcp' | 'anyapi';
+      category?: string;
+      config?: any;
+    };
+
+    if (!id || !name || !type) {
+      return res.status(400).json({ error: 'id, name, and type are required' });
+    }
+
+    await capabilityService.upsertCapability({
+      id,
+      name,
+      description: description || '',
+      type,
+      category,
+      config,
+      enabled: true,
+    });
+
+    res.json({ success: true, capabilityId: id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create capability' });
+  }
+});
+
+// Delete a capability
+adminRouter.delete('/capabilities/:capabilityId', async (req, res) => {
+  try {
+    const { capabilityId } = req.params;
+
+    await capabilityService.deleteCapability(capabilityId);
+
+    res.json({ success: true, capabilityId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete capability' });
+  }
+});
+
+// ============================================================================
+// MCP Hub Routes
+// ============================================================================
+
+// Get MCP Hub status
+adminRouter.get('/mcp/status', async (_req, res) => {
+  try {
+    const orchestrator = getOrchestrator();
+    const status = orchestrator.getHubStatus();
+    res.json(status);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to get MCP Hub status' });
+  }
+});
+
+// Get all available MCP tools
+adminRouter.get('/mcp/tools', async (_req, res) => {
+  try {
+    const orchestrator = getOrchestrator();
+    const tools = orchestrator.getAllTools();
+    res.json({ tools });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to get MCP tools' });
+  }
+});
+
+// Execute an MCP tool (for testing)
+adminRouter.post('/mcp/execute', async (req, res) => {
+  try {
+    const { server, tool, arguments: args } = req.body as {
+      server: string;
+      tool: string;
+      arguments: any;
+    };
+
+    if (!server || !tool) {
+      return res.status(400).json({ error: 'server and tool are required' });
+    }
+
+    const orchestrator = getOrchestrator();
+    const result = await orchestrator.executeAction(server, tool, args || {});
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to execute MCP tool' });
   }
 });

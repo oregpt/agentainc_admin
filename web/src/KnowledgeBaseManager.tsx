@@ -25,10 +25,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [creatingTextDoc, setCreatingTextDoc] = useState(false);
 
-  const [textTitle, setTextTitle] = useState('');
-  const [textContent, setTextContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [fileTitle, setFileTitle] = useState('');
 
@@ -73,37 +70,6 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
   useEffect(() => {
     loadDocuments().catch(() => undefined);
   }, [apiBaseUrl, agentId]);
-
-  const handleCreateTextDoc = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!textContent.trim()) return;
-
-    setCreatingTextDoc(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiBaseUrl}/api/kb/text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentId,
-          title: textTitle || 'Untitled',
-          text: textContent,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to create document: ${res.status}`);
-      }
-      const data = await res.json();
-      setDocuments((prev) => [data.document, ...prev]);
-      setTextTitle('');
-      setTextContent('');
-    } catch (e: any) {
-      console.error(e);
-      setError(e.message || 'Failed to create document');
-    } finally {
-      setCreatingTextDoc(false);
-    }
-  };
 
   const handleUploadFile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,54 +194,6 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           marginBottom: 12,
         }}
       >
-        <form onSubmit={handleCreateTextDoc} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 12, fontWeight: 500 }}>Add text document</label>
-          <input
-            type="text"
-            placeholder="Title (optional)"
-            value={textTitle}
-            onChange={(e) => setTextTitle(e.target.value)}
-            style={{
-              padding: '4px 6px',
-              borderRadius: 6,
-              border: '1px solid var(--agent-secondary)',
-              fontSize: 12,
-              fontFamily: 'inherit',
-            }}
-          />
-          <textarea
-            placeholder="Paste reference text here"
-            value={textContent}
-            onChange={(e) => setTextContent(e.target.value)}
-            rows={3}
-            style={{
-              padding: '4px 6px',
-              borderRadius: 6,
-              border: '1px solid var(--agent-secondary)',
-              fontSize: 12,
-              fontFamily: 'inherit',
-              resize: 'vertical',
-            }}
-          />
-          <button
-            type="submit"
-            disabled={creatingTextDoc || !textContent.trim()}
-            style={{
-              alignSelf: 'flex-end',
-              padding: '4px 10px',
-              borderRadius: 999,
-              border: 'none',
-              backgroundColor: 'var(--agent-primary)',
-              color: '#ffffff',
-              fontSize: 12,
-              cursor: creatingTextDoc || !textContent.trim() ? 'default' : 'pointer',
-              opacity: creatingTextDoc || !textContent.trim() ? 0.6 : 1,
-            }}
-          >
-            {creatingTextDoc ? 'Adding…' : 'Add text'}
-          </button>
-        </form>
-
         <form onSubmit={handleUploadFile} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 12, fontWeight: 500 }}>Upload file</label>
           <input
