@@ -1,7 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { AgentTheme, defaultTheme, applyTheme } from './theme';
 
 export type AgentChatWidgetMode = 'inline' | 'launcher';
+
+export interface PreChatFormConfig {
+  enabled: boolean;
+  fields?: {
+    name?: boolean;
+    email?: boolean;
+  };
+  title?: string;
+  subtitle?: string;
+}
 
 export interface AgentChatWidgetProps {
   apiBaseUrl: string;
@@ -9,13 +19,176 @@ export interface AgentChatWidgetProps {
   externalUserId?: string;
   theme?: Partial<AgentTheme>;
   mode?: AgentChatWidgetMode;
+  position?: 'bottom-right' | 'bottom-left';
+  preChatForm?: PreChatFormConfig;
 }
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  timestamp: Date;
+  attachments?: { name: string; url: string; type: string }[];
 }
+
+interface UserInfo {
+  name?: string;
+  email?: string;
+}
+
+// CSS Keyframes as a style tag (injected once)
+const WIDGET_STYLES = `
+@keyframes agentinabox-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes agentinabox-slideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+}
+
+@keyframes agentinabox-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes agentinabox-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes agentinabox-scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.agentinabox-dot-1 { animation: agentinabox-bounce 1.4s ease-in-out infinite; }
+.agentinabox-dot-2 { animation: agentinabox-bounce 1.4s ease-in-out 0.2s infinite; }
+.agentinabox-dot-3 { animation: agentinabox-bounce 1.4s ease-in-out 0.4s infinite; }
+`;
+
+// Inject styles once
+let stylesInjected = false;
+const injectStyles = () => {
+  if (stylesInjected || typeof document === 'undefined') return;
+  const style = document.createElement('style');
+  style.textContent = WIDGET_STYLES;
+  document.head.appendChild(style);
+  stylesInjected = true;
+};
+
+// Typing indicator component
+const TypingIndicator: React.FC<{ avatarUrl?: string; avatarLabel?: string }> = ({
+  avatarUrl,
+  avatarLabel,
+}) => (
+  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+    <div
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: '999px',
+        background: avatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 11,
+        color: 'var(--agent-avatar-text)',
+        fontWeight: 600,
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}
+    >
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        avatarLabel || 'AI'
+      )}
+    </div>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '12px 16px',
+        borderRadius: 14,
+        background: 'var(--agent-assistant-bubble)',
+        boxShadow: '0 4px 12px rgba(15,23,42,0.06)',
+      }}
+    >
+      <span
+        className="agentinabox-dot-1"
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          backgroundColor: 'var(--agent-text-secondary)',
+        }}
+      />
+      <span
+        className="agentinabox-dot-2"
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          backgroundColor: 'var(--agent-text-secondary)',
+        }}
+      />
+      <span
+        className="agentinabox-dot-3"
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          backgroundColor: 'var(--agent-text-secondary)',
+        }}
+      />
+    </div>
+  </div>
+);
+
+// Format relative time
+const formatRelativeTime = (date: Date): string => {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+};
 
 export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
   apiBaseUrl,
@@ -23,117 +196,161 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
   externalUserId,
   theme,
   mode = 'inline',
+  position = 'bottom-right',
+  preChatForm = { enabled: false },
 }) => {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
   const [isOpen, setIsOpen] = useState(mode === 'inline');
+  const [isClosing, setIsClosing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showPreChat, setShowPreChat] = useState(preChatForm.enabled);
+  const [userInfo, setUserInfo] = useState<UserInfo>({});
+  const [attachments, setAttachments] = useState<File[]>([]);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const mergedTheme: AgentTheme = { ...defaultTheme, ...(theme || {}) };
 
-  // Helper to resolve avatar URL (handles relative paths from uploads)
+  // Inject CSS animations
+  useEffect(() => {
+    injectStyles();
+  }, []);
+
+  // Resolve avatar URL
   const resolvedAvatarUrl = mergedTheme.avatarUrl
     ? mergedTheme.avatarUrl.startsWith('/')
       ? `${apiBaseUrl}${mergedTheme.avatarUrl}`
       : mergedTheme.avatarUrl
     : undefined;
 
+  // Apply theme
   useEffect(() => {
     if (containerRef.current) {
       applyTheme(containerRef.current, mergedTheme);
     }
-  }, [mergedTheme.primaryColor, mergedTheme.secondaryColor, mergedTheme.backgroundColor, mergedTheme.textColor, mergedTheme.borderRadius, mergedTheme.fontFamily]);
+  }, [mergedTheme]);
 
+  // Start conversation
   useEffect(() => {
-    // Start a conversation on mount
+    if (showPreChat) return; // Wait for pre-chat form
+
     const start = async () => {
       const res = await fetch(`${apiBaseUrl}/api/chat/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, externalUserId }),
+        body: JSON.stringify({ agentId, externalUserId, userInfo }),
       });
       const data = await res.json();
       setConversationId(data.conversationId);
     };
     start().catch(console.error);
-  }, [apiBaseUrl, agentId, externalUserId]);
+  }, [apiBaseUrl, agentId, externalUserId, showPreChat, userInfo]);
 
-  // Auto-apply theme when it changes
-  useEffect(() => {
-    if (containerRef.current) {
-      applyTheme(containerRef.current, mergedTheme);
-    }
-  }, [
-    mergedTheme.primaryColor,
-    mergedTheme.secondaryColor,
-    mergedTheme.backgroundColor,
-    mergedTheme.textColor,
-    mergedTheme.borderRadius,
-    mergedTheme.fontFamily,
-  ]);
-
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, isTyping]);
 
-  // Track elapsed streaming time (for "working" indicator)
+  // Track unread when closed
   useEffect(() => {
-    if (isStreaming && !loadingStartTime) {
-      setLoadingStartTime(Date.now());
-      setElapsedTime(0);
-    } else if (!isStreaming) {
-      setLoadingStartTime(null);
-      setElapsedTime(0);
+    if (!isOpen && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === 'assistant') {
+        setUnreadCount((c) => c + 1);
+      }
     }
-  }, [isStreaming, loadingStartTime]);
+  }, [messages, isOpen]);
 
+  // Clear unread when opened
   useEffect(() => {
-    if (isStreaming && loadingStartTime) {
-      const interval = window.setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - loadingStartTime) / 1000));
-      }, 1000);
-      return () => window.clearInterval(interval);
+    if (isOpen) {
+      setUnreadCount(0);
     }
-  }, [isStreaming, loadingStartTime]);
+  }, [isOpen]);
 
-  const formatElapsedTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+    }, 200);
+  };
+
+  const handleOpen = () => {
+    setIsOpen(true);
+  };
+
+  const handlePreChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setShowPreChat(false);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setAttachments((prev) => [...prev, ...files].slice(0, 5)); // Max 5 files
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const sendMessage = async () => {
-    if (!conversationId || !input.trim() || isStreaming) return;
+    if (!conversationId || (!input.trim() && attachments.length === 0) || isStreaming) return;
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: input,
+      timestamp: new Date(),
+      attachments: attachments.map((f) => ({
+        name: f.name,
+        url: URL.createObjectURL(f),
+        type: f.type,
+      })),
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    const currentConversationId = conversationId;
     const text = input;
     setInput('');
+    setAttachments([]);
     setIsStreaming(true);
+    setIsTyping(true);
 
     try {
-      const res = await fetch(`${apiBaseUrl}/api/chat/${currentConversationId}/stream`, {
+      // If we have attachments, upload them first
+      let uploadedFiles: string[] = [];
+      if (attachments.length > 0) {
+        const formData = new FormData();
+        attachments.forEach((f) => formData.append('files', f));
+        formData.append('conversationId', String(conversationId));
+
+        const uploadRes = await fetch(`${apiBaseUrl}/api/chat/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          uploadedFiles = uploadData.fileIds || [];
+        }
+      }
+
+      const res = await fetch(`${apiBaseUrl}/api/chat/${conversationId}/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, fileIds: uploadedFiles }),
       });
 
       if (!res.body) {
         setIsStreaming(false);
+        setIsTyping(false);
         return;
       }
 
@@ -143,7 +360,12 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
       let assistantContent = '';
       const assistantId = `assistant-${Date.now()}`;
 
-      setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+      // Stop typing indicator once we get first content
+      setIsTyping(false);
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: 'assistant', content: '', timestamp: new Date() },
+      ]);
 
       const processChunk = (chunk: string) => {
         const lines = chunk.split('\n');
@@ -180,6 +402,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
       }
     } catch (err) {
       console.error(err);
+      setIsTyping(false);
     } finally {
       setIsStreaming(false);
     }
@@ -192,400 +415,655 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
     }
   };
 
+  // Pre-chat form
+  const preChatPanel = (
+    <div
+      style={{
+        padding: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 12px',
+            overflow: 'hidden',
+          }}
+        >
+          {resolvedAvatarUrl ? (
+            <img
+              src={resolvedAvatarUrl}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <span style={{ fontSize: 20, color: 'var(--agent-avatar-text)', fontWeight: 600 }}>
+              {mergedTheme.avatarLabel}
+            </span>
+          )}
+        </div>
+        <h3 style={{ margin: 0, fontSize: 18, color: 'var(--agent-text)' }}>
+          {preChatForm.title || 'Start a conversation'}
+        </h3>
+        <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--agent-text-secondary)' }}>
+          {preChatForm.subtitle || "We're here to help. Let us know how we can assist you."}
+        </p>
+      </div>
+
+      <form onSubmit={handlePreChatSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {preChatForm.fields?.name !== false && (
+          <input
+            type="text"
+            placeholder="Your name"
+            value={userInfo.name || ''}
+            onChange={(e) => setUserInfo((prev) => ({ ...prev, name: e.target.value }))}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--agent-input-border)',
+              backgroundColor: 'var(--agent-input-bg)',
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+        )}
+        {preChatForm.fields?.email !== false && (
+          <input
+            type="email"
+            placeholder="Your email"
+            value={userInfo.email || ''}
+            onChange={(e) => setUserInfo((prev) => ({ ...prev, email: e.target.value }))}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--agent-input-border)',
+              backgroundColor: 'var(--agent-input-bg)',
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+        )}
+        <button
+          type="submit"
+          style={{
+            padding: '12px 16px',
+            borderRadius: 8,
+            border: 'none',
+            background: 'linear-gradient(135deg, var(--agent-primary), #4f46e5)',
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: 'pointer',
+            marginTop: 4,
+          }}
+        >
+          Start Chat
+        </button>
+      </form>
+    </div>
+  );
+
+  // Main chat panel
   const chatPanel = (
     <div
       className="agentinabox-chat"
       style={{
         backgroundColor: 'var(--agent-bg)',
-        borderRadius: 'var(--agent-radius)',
+        borderRadius: 16,
         border: '1px solid var(--agent-secondary)',
         width: '100%',
-        maxWidth: 520,
-        maxHeight: 'min(540px, 90vh)',
+        maxWidth: 400,
+        maxHeight: 'min(600px, 85vh)',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        animation: isClosing
+          ? 'agentinabox-slideDown 0.2s ease-out forwards'
+          : 'agentinabox-slideUp 0.3s ease-out',
       }}
     >
-        {/* Header - fully themeable */}
-        <div
-          style={{
-            padding: '10px 12px',
-            borderBottom: '1px solid rgba(148, 163, 184, 0.4)',
-            background: `linear-gradient(135deg, var(--agent-header-gradient-from), var(--agent-header-gradient-to))`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                position: 'relative',
-                width: 28,
-                height: 28,
-                borderRadius: '999px',
-                background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--agent-avatar-text)',
-                fontSize: 14,
-                fontWeight: 600,
-                overflow: 'hidden',
-              }}
-            >
-              {resolvedAvatarUrl ? (
-                <img
-                  src={resolvedAvatarUrl}
-                  alt="Avatar"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                mergedTheme.avatarLabel
-              )}
-              <span
-                style={{
-                  position: 'absolute',
-                  bottom: -1,
-                  right: -1,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '999px',
-                  border: '2px solid white',
-                  backgroundColor: 'var(--agent-status-active)',
-                }}
-              />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: 'var(--agent-header-title-color)',
-                }}
-              >
-                {mergedTheme.headerTitle}
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'var(--agent-header-subtitle-color)',
-                }}
-              >
-                {mergedTheme.headerSubtitle}
-              </div>
-            </div>
-          </div>
+      {/* Header */}
+      <div
+        style={{
+          padding: '14px 16px',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.2)',
+          background: `linear-gradient(135deg, var(--agent-header-gradient-from), var(--agent-header-gradient-to))`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
+              position: 'relative',
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              fontSize: 10,
-              color: '#64748b',
+              justifyContent: 'center',
+              color: 'var(--agent-avatar-text)',
+              fontSize: 14,
+              fontWeight: 600,
+              overflow: 'hidden',
             }}
           >
-            {isStreaming ? (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '2px 8px',
-                  borderRadius: 999,
-                  backgroundColor: 'rgba(59,130,246,0.12)',
-                  color: 'var(--agent-status-working)',
-                  fontWeight: 500,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '999px',
-                    backgroundColor: 'var(--agent-status-active)',
-                    boxShadow: '0 0 0 3px rgba(34,197,94,0.35)',
-                    animation: 'agentinabox-pulse 1.4s ease-in-out infinite',
-                  }}
-                />
-                Working {formatElapsedTime(elapsedTime)}
-              </span>
+            {resolvedAvatarUrl ? (
+              <img
+                src={resolvedAvatarUrl}
+                alt="Avatar"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
             ) : (
-              <span style={{ fontSize: 10, color: '#94a3b8' }}>
-                Ready for your question
-              </span>
+              mergedTheme.avatarLabel
             )}
+            <span
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                border: '2px solid white',
+                backgroundColor: '#22c55e',
+              }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--agent-header-title-color)' }}>
+              {mergedTheme.headerTitle}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--agent-header-subtitle-color)', opacity: 0.9 }}>
+              {isStreaming ? 'Typing...' : mergedTheme.headerSubtitle}
+            </div>
           </div>
         </div>
+        {mode === 'launcher' && (
+          <button
+            onClick={handleClose}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              border: 'none',
+              borderRadius: 8,
+              padding: 6,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
+      </div>
 
-        {/* Messages area */}
-        <div
-          className="agentinabox-messages"
-          style={{
-            maxHeight: 'min(360px, 60vh)',
-            minHeight: 200,
-            overflowY: 'auto',
-            padding: '10px 10px 12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            background:
-              'radial-gradient(circle at top, rgba(191,219,254,0.35), transparent 55%)',
-          }}
-        >
-          {messages.length === 0 && (
-            <div
-              style={{
-                fontSize: 12,
-                color: '#64748b',
-                backgroundColor: 'rgba(255,255,255,0.8)',
-                borderRadius: 12,
-                padding: '10px 12px',
-                border: '1px dashed rgba(148,163,184,0.5)',
-              }}
-            >
-              <div style={{ fontWeight: 500, marginBottom: 4 }}>{mergedTheme.welcomeTitle}</div>
-              <div>{mergedTheme.welcomeMessage}</div>
-            </div>
-          )}
+      {/* Messages or Pre-chat */}
+      {showPreChat ? (
+        preChatPanel
+      ) : (
+        <>
+          <div
+            className="agentinabox-messages"
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              background: 'linear-gradient(180deg, rgba(248,250,252,0.5) 0%, rgba(255,255,255,1) 100%)',
+            }}
+          >
+            {messages.length === 0 && !isTyping && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '24px 16px',
+                  animation: 'agentinabox-scaleIn 0.3s ease-out',
+                }}
+              >
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {resolvedAvatarUrl ? (
+                    <img
+                      src={resolvedAvatarUrl}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 22, color: 'var(--agent-avatar-text)', fontWeight: 600 }}>
+                      {mergedTheme.avatarLabel}
+                    </span>
+                  )}
+                </div>
+                <h4 style={{ margin: '0 0 8px', fontSize: 16, color: 'var(--agent-text)' }}>
+                  {mergedTheme.welcomeTitle}
+                </h4>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--agent-text-secondary)', lineHeight: 1.5 }}>
+                  {mergedTheme.welcomeMessage}
+                </p>
+              </div>
+            )}
 
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              style={{
-                display: 'flex',
-                justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-                gap: 8,
-              }}
-            >
-              {m.role === 'assistant' && (
-                <div style={{ flexShrink: 0 }}>
+            {messages.map((m, index) => {
+              const showTimestamp =
+                index === 0 ||
+                m.timestamp.getTime() - messages[index - 1].timestamp.getTime() > 60000;
+
+              return (
+                <div key={m.id}>
+                  {showTimestamp && (
+                    <div
+                      style={{
+                        textAlign: 'center',
+                        fontSize: 11,
+                        color: 'var(--agent-text-secondary)',
+                        margin: '8px 0',
+                      }}
+                    >
+                      {formatRelativeTime(m.timestamp)}
+                    </div>
+                  )}
                   <div
                     style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '999px',
-                      background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 11,
-                      color: 'var(--agent-avatar-text)',
-                      fontWeight: 600,
-                      overflow: 'hidden',
+                      justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+                      gap: 8,
+                      animation: 'agentinabox-scaleIn 0.2s ease-out',
                     }}
                   >
-                    {resolvedAvatarUrl ? (
-                      <img
-                        src={resolvedAvatarUrl}
-                        alt=""
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      mergedTheme.avatarLabel
+                    {m.role === 'assistant' && (
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          color: 'var(--agent-avatar-text)',
+                          fontWeight: 600,
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {resolvedAvatarUrl ? (
+                          <img
+                            src={resolvedAvatarUrl}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          mergedTheme.avatarLabel
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ maxWidth: '80%' }}>
+                      <div
+                        style={{
+                          borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          padding: '10px 14px',
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          background:
+                            m.role === 'user'
+                              ? 'var(--agent-user-bubble)'
+                              : 'var(--agent-assistant-bubble)',
+                          color:
+                            m.role === 'user'
+                              ? 'var(--agent-user-bubble-text)'
+                              : 'var(--agent-assistant-bubble-text)',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        }}
+                      >
+                        {m.content}
+                      </div>
+                      {m.attachments && m.attachments.length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                          {m.attachments.map((att, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                backgroundColor: 'rgba(0,0,0,0.05)',
+                                fontSize: 11,
+                                color: 'var(--agent-text-secondary)',
+                              }}
+                            >
+                              📎 {att.name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {m.role === 'user' && (
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          backgroundColor: 'var(--agent-user-avatar-bg)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          color: 'var(--agent-user-avatar-text)',
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {mergedTheme.userAvatarLabel}
+                      </div>
                     )}
                   </div>
                 </div>
-              )}
+              );
+            })}
 
-              <div
-                style={{
-                  maxWidth: '78%',
-                  borderRadius: 14,
-                  padding: '8px 10px',
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  background:
-                    m.role === 'user'
-                      ? 'var(--agent-user-bubble)'
-                      : 'var(--agent-assistant-bubble)',
-                  color:
-                    m.role === 'user'
-                      ? 'var(--agent-user-bubble-text)'
-                      : 'var(--agent-assistant-bubble-text)',
-                  boxShadow:
-                    m.role === 'assistant'
-                      ? '0 8px 24px rgba(15,23,42,0.08)'
-                      : '0 4px 12px rgba(15,23,42,0.12)',
-                }}
-              >
-                {m.content}
-              </div>
+            {isTyping && (
+              <TypingIndicator avatarUrl={resolvedAvatarUrl} avatarLabel={mergedTheme.avatarLabel} />
+            )}
 
-              {m.role === 'user' && (
-                <div style={{ flexShrink: 0 }}>
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '999px',
-                      backgroundColor: 'var(--agent-user-avatar-bg)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 11,
-                      color: 'var(--agent-user-avatar-text)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {mergedTheme.userAvatarLabel}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input area */}
-        <div
-          style={{
-            borderTop: '1px solid rgba(148,163,184,0.35)',
-            padding: 10,
-            backgroundColor: 'rgba(255,255,255,0.98)',
-          }}
-        >
-          <div style={{ marginBottom: 4, fontSize: 10, color: '#94a3b8' }}>
-            Press Enter to send, Shift+Enter for a new line.
+            <div ref={messagesEndRef} />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              rows={2}
-              placeholder={isStreaming ? 'Streaming response…' : mergedTheme.placeholderText}
+
+          {/* Attachments Preview */}
+          {attachments.length > 0 && (
+            <div
               style={{
-                resize: 'none',
-                width: '100%',
-                boxSizing: 'border-box',
-                borderRadius: 10,
-                border: '1px solid var(--agent-input-border)',
-                padding: '6px 8px',
-                fontFamily: 'inherit',
-                fontSize: 13,
-                backgroundColor: 'var(--agent-input-bg)',
-              }}
-            />
-            <button
-              type="button"
-              onClick={sendMessage}
-              disabled={!conversationId || !input.trim() || isStreaming}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: 'none',
-                cursor:
-                  !conversationId || !input.trim() || isStreaming ? 'default' : 'pointer',
-                opacity: !conversationId || !input.trim() || isStreaming ? 0.6 : 1,
-                background:
-                  'linear-gradient(135deg, var(--agent-primary), #4f46e5)',
-                color: '#ffffff',
-                fontSize: 13,
-                fontWeight: 500,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                boxShadow: '0 8px 20px rgba(37,99,235,0.35)',
-                whiteSpace: 'nowrap',
+                padding: '8px 16px',
+                borderTop: '1px solid rgba(148,163,184,0.2)',
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                backgroundColor: 'rgba(248,250,252,0.95)',
               }}
             >
-              {isStreaming ? 'Generating…' : 'Send'}
-            </button>
+              {attachments.map((file, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    backgroundColor: 'var(--agent-primary)',
+                    color: '#fff',
+                    fontSize: 12,
+                  }}
+                >
+                  <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {file.name}
+                  </span>
+                  <button
+                    onClick={() => removeAttachment(i)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontSize: 14,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Input Area */}
+          <div
+            style={{
+              borderTop: '1px solid rgba(148,163,184,0.2)',
+              padding: 12,
+              backgroundColor: 'rgba(255,255,255,0.98)',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              {/* Attachment Button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  padding: 8,
+                  borderRadius: 8,
+                  border: '1px solid var(--agent-input-border)',
+                  background: 'var(--agent-input-bg)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--agent-text-secondary)',
+                }}
+                title="Attach file"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+                accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              />
+
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={1}
+                placeholder={isStreaming ? 'Waiting for response...' : mergedTheme.placeholderText}
+                disabled={isStreaming}
+                style={{
+                  flex: 1,
+                  resize: 'none',
+                  boxSizing: 'border-box',
+                  borderRadius: 10,
+                  border: '1px solid var(--agent-input-border)',
+                  padding: '10px 12px',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  backgroundColor: 'var(--agent-input-bg)',
+                  outline: 'none',
+                  minHeight: 42,
+                  maxHeight: 120,
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={sendMessage}
+                disabled={!conversationId || (!input.trim() && attachments.length === 0) || isStreaming}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 10,
+                  border: 'none',
+                  cursor:
+                    !conversationId || (!input.trim() && attachments.length === 0) || isStreaming
+                      ? 'not-allowed'
+                      : 'pointer',
+                  opacity:
+                    !conversationId || (!input.trim() && attachments.length === 0) || isStreaming
+                      ? 0.5
+                      : 1,
+                  background: 'linear-gradient(135deg, var(--agent-primary), #4f46e5)',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
           </div>
-        </div>
-        <div
-          style={{
-            padding: '4px 10px',
-            fontSize: 10,
-            color: '#9ca3af',
-            textAlign: 'right',
-            backgroundColor: 'rgba(248,250,252,0.95)',
-            borderTop: '1px solid rgba(148,163,184,0.25)',
-          }}
-        >
-          Powered by AgenticLedger
-        </div>
-      </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '8px 16px',
+              fontSize: 11,
+              color: '#9ca3af',
+              textAlign: 'center',
+              backgroundColor: 'rgba(248,250,252,0.95)',
+              borderTop: '1px solid rgba(148,163,184,0.15)',
+            }}
+          >
+            Powered by{' '}
+            <a
+              href="https://agenticledger.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--agent-primary)', textDecoration: 'none' }}
+            >
+              AgenticLedger
+            </a>
+          </div>
+        </>
+      )}
+    </div>
   );
 
+  // Launcher mode
   if (mode === 'launcher') {
+    const positionStyles =
+      position === 'bottom-left' ? { left: 20, right: 'auto' } : { right: 20, left: 'auto' };
+
     return (
       <div
         ref={containerRef}
         style={{
           fontFamily: 'var(--agent-font)',
           position: 'fixed',
-          bottom: 16,
-          right: 16,
-          zIndex: 9999,
-          maxWidth: '100vw',
+          bottom: 20,
+          ...positionStyles,
+          zIndex: 999999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: position === 'bottom-left' ? 'flex-start' : 'flex-end',
         }}
         className="agentinabox-root"
       >
-        {isOpen && (
-          <div
-            style={{
-              marginBottom: 8,
-              maxWidth: 'min(420px, 100vw - 32px)',
-            }}
-          >
-            {chatPanel}
-          </div>
-        )}
+        {isOpen && <div style={{ marginBottom: 16 }}>{chatPanel}</div>}
+
+        {/* Launcher Button */}
         <button
           type="button"
-          onClick={() => setIsOpen((v) => !v)}
+          onClick={isOpen ? handleClose : handleOpen}
           style={{
-            display: 'inline-flex',
+            width: 60,
+            height: 60,
+            borderRadius: '50%',
+            border: 'none',
+            background: 'linear-gradient(135deg, var(--agent-primary), #4f46e5)',
+            color: '#ffffff',
+            boxShadow: '0 8px 24px rgba(79, 70, 229, 0.4)',
+            cursor: 'pointer',
+            display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 8,
-            padding: '10px 14px',
-            borderRadius: 999,
-            border: 'none',
-            background:
-              'linear-gradient(135deg, var(--agent-primary), rgba(79,70,229,1))',
-            color: '#ffffff',
-            fontSize: 13,
-            fontWeight: 500,
-            boxShadow: '0 18px 40px rgba(15,23,42,0.45)',
-            cursor: 'pointer',
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            position: 'relative',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.boxShadow = '0 12px 28px rgba(79, 70, 229, 0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(79, 70, 229, 0.4)';
           }}
         >
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 999,
-              backgroundColor: 'rgba(15,23,42,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-            }}
-          >
-            AI
-          </span>
-          <span>{isOpen ? 'Close assistant' : 'Chat with agent'}</span>
+          {isOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          ) : (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          )}
+
+          {/* Unread Badge */}
+          {unreadCount > 0 && !isOpen && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                backgroundColor: '#ef4444',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid white',
+                animation: 'agentinabox-scaleIn 0.2s ease-out',
+              }}
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
       </div>
     );
   }
 
-  // inline mode
+  // Inline mode
   return (
-    <div
-      ref={containerRef}
-      style={{ fontFamily: 'var(--agent-font)' }}
-      className="agentinabox-root"
-    >
+    <div ref={containerRef} style={{ fontFamily: 'var(--agent-font)' }} className="agentinabox-root">
       {chatPanel}
     </div>
   );

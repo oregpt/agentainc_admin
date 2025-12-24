@@ -430,6 +430,114 @@ The Knowledge Base Manager has been completely rewritten with professional featu
 
 ---
 
+### Chat Widget Polish (Intercom/Pylon Style)
+
+**Feature Added:** Professional chat widget with modern UX patterns
+
+The AgentChatWidget has been completely revamped with Intercom-style polish:
+
+**Launcher Mode Features:**
+- Circular floating button in bottom-right corner (configurable: bottom-left)
+- Smooth slide-up animation when opening chat panel
+- Fade-out animation when closing
+- Unread message badge with red notification dot
+- High z-index (999999) for proper layering on any page
+- Hover effect with scale and shadow transitions
+
+**Typing Indicator:**
+- Animated bouncing dots (3 dots with staggered timing)
+- Shows while waiting for AI response
+- Avatar displays next to typing indicator
+- Smooth animation using CSS keyframes
+
+**Visual Improvements:**
+- Relative timestamps ("Just now", "2m ago", "Yesterday")
+- Timestamps shown between messages when gap > 1 minute
+- Improved message bubble styling with different corner radii
+- Scale-in animation for new messages
+- Better gradient header with online status indicator
+- Close button in header (X icon)
+
+**File Attachments:**
+- Paperclip button to attach files
+- Supports: images, PDF, DOC, DOCX, TXT, MD
+- Max 5 files per message
+- Preview strip shows attached files before sending
+- Remove button (×) on each attachment
+
+**Pre-Chat Form (Optional):**
+- Configurable via `preChatForm` prop (default: off)
+- Collects name and email before first message
+- Customizable title and subtitle
+- Clean centered layout with avatar display
+
+**New Props:**
+```typescript
+interface AgentChatWidgetProps {
+  apiBaseUrl: string;
+  agentId?: string;
+  theme?: Partial<AgentTheme>;
+  mode?: 'inline' | 'launcher';  // launcher = floating bubble
+  position?: 'bottom-right' | 'bottom-left';
+  preChatForm?: {
+    enabled: boolean;
+    fields?: { name?: boolean; email?: boolean };
+    title?: string;
+    subtitle?: string;
+  };
+}
+```
+
+**CSS Animations Added:**
+- `agentinabox-slideUp` - Chat panel entrance
+- `agentinabox-slideDown` - Chat panel exit
+- `agentinabox-bounce` - Typing indicator dots
+- `agentinabox-scaleIn` - Message appearance
+- `agentinabox-pulse` - Status indicator
+
+**Embeddability:**
+- All styles are inline or injected as scoped keyframes
+- No global CSS pollution
+- Works on any website without conflicts
+- Fixed positioning with configurable placement
+
+**Files Modified:**
+- `web/src/AgentChatWidget.tsx` - Complete rewrite with all features
+- `web/src/theme.ts` - Added `--agent-text-secondary` CSS variable
+
+---
+
+### Multi-Select Document Management
+
+**Feature Added:** Bulk operations for documents in Knowledge Base
+
+The DocumentList component now supports multi-select functionality:
+
+**UI Features:**
+- Checkbox column for selecting individual documents
+- Header checkbox for select all (up to 20)
+- Maximum selection limit of 20 documents at a time
+- Bulk action toolbar appears when documents are selected
+- Selected documents are highlighted with primary color
+
+**Bulk Operations:**
+- **Apply Tags**: Opens a modal to select tags to apply to all selected documents
+- **Delete**: Bulk delete with confirmation prompt
+- Selection automatically clears after bulk operation completes
+
+**Backend Endpoints:**
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/agents/:agentId/documents/bulk-tags` | Apply tags to multiple documents |
+| POST | `/api/admin/agents/:agentId/documents/bulk-delete` | Delete multiple documents |
+
+**Files Modified:**
+- `web/src/components/DocumentList.tsx` - Added multi-select state, checkbox column, bulk action toolbar, bulk tag modal
+- `web/src/KnowledgeBaseManager.tsx` - Added bulk operation handlers and wired to DocumentList
+- `server/src/http/adminRoutes.ts` - Added bulk-tags and bulk-delete endpoints
+
+---
+
 ## Known Issues / TODO
 
 1. ~~**Capabilities tab shows "Failed to load"**~~ - Fixed: Added ALTER TABLE for `category` column
@@ -453,3 +561,5 @@ The Knowledge Base Manager has been completely rewritten with professional featu
 | Dec 24, 2025 | Avatar File Upload | Additive - file picker replaces URL input |
 | Dec 24, 2025 | Admin Light/Dark Mode | Additive - theme toggle with AgenticLedger-style light mode |
 | Dec 24, 2025 | Knowledge Base Enhancement | Major - folders, tags, categories, full rewrite |
+| Dec 24, 2025 | Multi-Select Documents | Additive - bulk category assignment, bulk delete (max 20) |
+| Dec 24, 2025 | Chat Widget Polish | Major - Intercom-style launcher, typing indicator, file attachments |

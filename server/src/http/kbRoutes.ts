@@ -65,6 +65,10 @@ kbRouter.post('/files', upload.single('file'), async (req, res) => {
     const title = String(typedReq.body.title || typedReq.file.originalname || 'Untitled');
     const mimeType = typedReq.file.mimetype || 'application/octet-stream';
 
+    // Parse folderId and category from form data
+    const folderId = typedReq.body.folderId ? parseInt(typedReq.body.folderId, 10) : null;
+    const category = typedReq.body.category as 'knowledge' | 'code' | 'data' | undefined;
+
     const extracted = await extractTextFromFile(typedReq.file.path, mimeType);
 
     const doc = await ingestFileDocument(
@@ -73,7 +77,11 @@ kbRouter.post('/files', upload.single('file'), async (req, res) => {
       extracted.mimeType,
       extracted.size,
       extracted.content,
-      typedReq.body.metadata || {}
+      {
+        metadata: typedReq.body.metadata || {},
+        folderId: folderId || null,
+        category: category || 'knowledge',
+      }
     );
 
     res.json({ document: doc });

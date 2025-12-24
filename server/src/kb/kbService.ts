@@ -42,7 +42,11 @@ export async function ingestFileDocument(
   mimeType: string,
   size: number,
   content: string,
-  metadata?: Record<string, unknown>
+  options?: {
+    metadata?: Record<string, unknown>;
+    folderId?: number | null;
+    category?: 'knowledge' | 'code' | 'data';
+  }
 ) {
   const inserted = (await db
     .insert(documents)
@@ -52,7 +56,9 @@ export async function ingestFileDocument(
       sourceType: 'file',
       mimeType,
       size,
-      metadata: metadata || {},
+      metadata: options?.metadata || {},
+      folderId: options?.folderId || null,
+      category: options?.category || 'knowledge',
     })
     .returning()) as any[];
 

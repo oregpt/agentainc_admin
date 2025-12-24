@@ -8,7 +8,7 @@ import { ensureDefaultAgent } from '../chat/chatService';
 import { AVAILABLE_MODELS } from '../llm';
 import { capabilityService } from '../capabilities';
 import { getOrchestrator } from '../mcp-hub';
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql, inArray } from 'drizzle-orm';
 
 export const adminRouter = Router();
 
@@ -1036,22 +1036,104 @@ adminRouter.get('/agents/:agentId/documents', async (req, res) => {
   }
 });
 
+// Bulk apply category to multiple documents
+adminRouter.post('/agents/:agentId/documents/bulk-category', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { documentIds, category } = req.body as { documentIds: number[]; category: string };
+
+    if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+      return res.status(400).json({ error: 'documentIds array is required' });
+    }
+
+    if (!category || typeof category !== 'string') {
+      return res.status(400).json({ error: 'category is required' });
+    }
+
+    // Limit to 20 documents at a time
+    if (documentIds.length > 20) {
+      return res.status(400).json({ error: 'Maximum 20 documents can be updated at once' });
+    }
+
+    // Update category for all matching documents
+    await db
+      .update(documents)
+      .set({ category })
+      .where(and(
+        eq(documents.agentId, agentId),
+        inArray(documents.id, documentIds)
+      ));
+
+    res.json({
+      success: true,
+      updatedCount: documentIds.length,
+      category
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to bulk apply category' });
+  }
+});
+
+// Bulk delete documents
+adminRouter.post('/agents/:agentId/documents/bulk-delete', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { documentIds } = req.body as { documentIds: number[] };
+
+    if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+      return res.status(400).json({ error: 'documentIds array is required' });
+    }
+
+    // Limit to 20 documents at a time
+    if (documentIds.length > 20) {
+      return res.status(400).json({ error: 'Maximum 20 documents can be deleted at once' });
+    }
+
+    // Delete documents that belong to this agent
+    await db
+      .delete(documents)
+      .where(and(
+        eq(documents.agentId, agentId),
+        inArray(documents.id, documentIds)
+      ));
+
+    res.json({ success: true, deletedCount: documentIds.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to bulk delete documents' });
+  }
+});
+
 // Get storage stats for an agent
 adminRouter.get('/agents/:agentId/storage', async (req, res) => {
   try {
     const { agentId } = req.params;
 
-    const stats = await db
+    // Get basic stats
+    const basicStats = await db
       .select({
         totalDocuments: sql<number>`CAST(COUNT(*) AS INTEGER)`,
         totalSize: sql<number>`COALESCE(SUM(${documents.size}), 0)`,
-        byCategory: sql<any>`json_object_agg(
-          COALESCE(${documents.category}, 'knowledge'),
-          CAST(COUNT(*) AS INTEGER)
-        )`,
       })
       .from(documents)
       .where(eq(documents.agentId, agentId));
+
+    // Get category breakdown with GROUP BY
+    const categoryStats = await db
+      .select({
+        category: sql<string>`COALESCE(${documents.category}, 'knowledge')`,
+        count: sql<number>`CAST(COUNT(*) AS INTEGER)`,
+      })
+      .from(documents)
+      .where(eq(documents.agentId, agentId))
+      .groupBy(sql`COALESCE(${documents.category}, 'knowledge')`);
+
+    // Convert to object
+    const byCategory: Record<string, number> = {};
+    for (const row of categoryStats) {
+      byCategory[row.category] = row.count;
+    }
 
     // Get folder count
     const folderCount = await db
@@ -1067,9 +1149,9 @@ adminRouter.get('/agents/:agentId/storage', async (req, res) => {
 
     res.json({
       storage: {
-        totalDocuments: stats[0]?.totalDocuments || 0,
-        totalSize: stats[0]?.totalSize || 0,
-        byCategory: stats[0]?.byCategory || {},
+        totalDocuments: basicStats[0]?.totalDocuments || 0,
+        totalSize: basicStats[0]?.totalSize || 0,
+        byCategory,
         folderCount: folderCount[0]?.count || 0,
         tagCount: tagCount[0]?.count || 0,
       },

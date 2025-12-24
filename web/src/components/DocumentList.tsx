@@ -20,6 +20,8 @@ export interface Document {
   tags: Tag[];
 }
 
+const MAX_SELECTION = 20;
+
 interface DocumentListProps {
   documents: Document[];
   allTags: Tag[];
@@ -27,6 +29,9 @@ interface DocumentListProps {
   onMoveDocument: (doc: Document) => void;
   onChangeCategory: (doc: Document, category: DocumentCategory) => void;
   onEditTags: (doc: Document) => void;
+  // Multi-select bulk operations
+  onBulkCategoryAssign?: (docIds: number[], category: DocumentCategory) => void;
+  onBulkDelete?: (docIds: number[]) => void;
 }
 
 const formatFileSize = (bytes?: number): string => {
@@ -48,11 +53,48 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onMoveDocument,
   onChangeCategory,
   onEditTags,
+  onBulkCategoryAssign,
+  onBulkDelete,
 }) => {
   const { colors } = useAdminTheme();
   const [sortBy, setSortBy] = useState<'title' | 'createdAt' | 'size'>('title');
   const [sortAsc, setSortAsc] = useState(true);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false);
+
+  const toggleSelection = (docId: number) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(docId)) {
+      newSet.delete(docId);
+    } else {
+      if (newSet.size >= MAX_SELECTION) {
+        alert(`You can select up to ${MAX_SELECTION} documents at a time.`);
+        return;
+      }
+      newSet.add(docId);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const selectAll = () => {
+    const docIds = sortedDocs.slice(0, MAX_SELECTION).map(d => d.id);
+    setSelectedIds(new Set(docIds));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkCategoryApply = (category: DocumentCategory) => {
+    if (onBulkCategoryAssign && selectedIds.size > 0) {
+      onBulkCategoryAssign(Array.from(selectedIds), category);
+      setShowBulkCategoryModal(false);
+      clearSelection();
+    }
+  };
 
   const sortedDocs = [...documents].sort((a, b) => {
     let cmp = 0;
@@ -117,9 +159,179 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 
   return (
     <div style={{ overflowX: 'auto' }}>
+      {/* Bulk Action Toolbar */}
+      {selectedIds.size > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 12px',
+            backgroundColor: colors.primary + '15',
+            borderRadius: 8,
+            marginBottom: 12,
+            border: `1px solid ${colors.primary}40`,
+          }}
+        >
+          <span style={{ fontSize: 13, color: colors.text, fontWeight: 500 }}>
+            {selectedIds.size} selected {selectedIds.size === MAX_SELECTION && `(max ${MAX_SELECTION})`}
+          </span>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={() => setShowBulkCategoryModal(true)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: 'none',
+              background: colors.primary,
+              color: '#fff',
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+            Set Category
+          </button>
+          {onBulkDelete && (
+            <button
+              onClick={() => {
+                if (confirm(`Delete ${selectedIds.size} documents? This cannot be undone.`)) {
+                  onBulkDelete(Array.from(selectedIds));
+                  clearSelection();
+                }
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: `1px solid ${colors.error}`,
+                background: 'transparent',
+                color: colors.error,
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Delete
+            </button>
+          )}
+          <button
+            onClick={clearSelection}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: `1px solid ${colors.border}`,
+              background: colors.bgCard,
+              color: colors.text,
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Bulk Category Assignment Modal */}
+      {showBulkCategoryModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowBulkCategoryModal(false)}
+        >
+          <div
+            style={{
+              background: colors.bgCard,
+              borderRadius: 12,
+              padding: 24,
+              width: 320,
+              boxShadow: colors.shadowLg,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px', color: colors.text, fontSize: 16 }}>
+              Set Category for {selectedIds.size} Documents
+            </h3>
+            <p style={{ fontSize: 12, color: colors.textSecondary, margin: '0 0 16px' }}>
+              Choose a category to apply to all selected documents.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {(['knowledge', 'code', 'data'] as DocumentCategory[]).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => handleBulkCategoryApply(cat)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    backgroundColor: colors.bgSecondary,
+                    border: `1px solid ${colors.border}`,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.bgHover)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bgSecondary)}
+                >
+                  <CategoryBadge category={cat} />
+                  <span style={{ color: colors.textSecondary, fontSize: 12, marginLeft: 'auto' }}>
+                    Click to apply
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowBulkCategoryModal(false)}
+              style={{
+                width: '100%',
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: `1px solid ${colors.border}`,
+                background: colors.bgCard,
+                color: colors.text,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+            {/* Checkbox column */}
+            <th style={{ width: 40, padding: '10px 8px' }}>
+              <input
+                type="checkbox"
+                checked={selectedIds.size > 0 && selectedIds.size === Math.min(documents.length, MAX_SELECTION)}
+                onChange={() => {
+                  if (selectedIds.size > 0) {
+                    clearSelection();
+                  } else {
+                    selectAll();
+                  }
+                }}
+                style={{ cursor: 'pointer', accentColor: colors.primary }}
+                title={selectedIds.size > 0 ? 'Clear selection' : `Select up to ${MAX_SELECTION}`}
+              />
+            </th>
             <th
               onClick={() => handleSort('title')}
               style={{
@@ -178,20 +390,35 @@ export const DocumentList: React.FC<DocumentListProps> = ({
           </tr>
         </thead>
         <tbody>
-          {sortedDocs.map((doc) => (
+          {sortedDocs.map((doc) => {
+            const isSelected = selectedIds.has(doc.id);
+            return (
             <tr
               key={doc.id}
               style={{
                 borderBottom: `1px solid ${colors.border}`,
-                backgroundColor: expandedRow === doc.id ? colors.bgSecondary : 'transparent',
+                backgroundColor: isSelected
+                  ? `${colors.primary}15`
+                  : expandedRow === doc.id
+                  ? colors.bgSecondary
+                  : 'transparent',
               }}
               onMouseEnter={(e) => {
-                if (expandedRow !== doc.id) e.currentTarget.style.backgroundColor = colors.bgHover;
+                if (expandedRow !== doc.id && !isSelected) e.currentTarget.style.backgroundColor = colors.bgHover;
               }}
               onMouseLeave={(e) => {
-                if (expandedRow !== doc.id) e.currentTarget.style.backgroundColor = 'transparent';
+                if (expandedRow !== doc.id && !isSelected) e.currentTarget.style.backgroundColor = 'transparent';
               }}
             >
+              {/* Checkbox cell */}
+              <td style={{ padding: '10px 8px', width: 40 }}>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelection(doc.id)}
+                  style={{ cursor: 'pointer', accentColor: colors.primary }}
+                />
+              </td>
               <td style={{ padding: '10px 12px', color: colors.text }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {/* File Icon */}
@@ -396,7 +623,8 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                 )}
               </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>

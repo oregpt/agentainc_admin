@@ -133,4 +133,7 @@ export function applyTheme(root: HTMLElement, theme: AgentTheme) {
   // Input
   root.style.setProperty('--agent-input-bg', theme.inputBgColor);
   root.style.setProperty('--agent-input-border', theme.inputBorderColor);
+
+  // Text secondary (for typing indicator, timestamps, etc.)
+  root.style.setProperty('--agent-text-secondary', '#6b7280');
 }

@@ -308,6 +308,37 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     }
   };
 
+  // Bulk operations
+  const handleBulkCategoryAssign = async (docIds: number[], category: DocumentCategory) => {
+    try {
+      const res = await fetch(apiUrl('/documents/bulk-category'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentIds: docIds, category }),
+      });
+      if (!res.ok) throw new Error('Failed to apply category');
+      await loadDocuments();
+      await loadStorage();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const handleBulkDelete = async (docIds: number[]) => {
+    try {
+      const res = await fetch(apiUrl('/documents/bulk-delete'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentIds: docIds }),
+      });
+      if (!res.ok) throw new Error('Failed to delete documents');
+      await loadDocuments();
+      await loadStorage();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   // Upload
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -553,6 +584,8 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
               onMoveDocument={handleMoveDocument}
               onChangeCategory={handleChangeCategory}
               onEditTags={handleEditTags}
+              onBulkCategoryAssign={handleBulkCategoryAssign}
+              onBulkDelete={handleBulkDelete}
             />
           </div>
         </div>
