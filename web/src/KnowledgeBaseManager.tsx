@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AgentTheme, applyTheme, defaultTheme } from './theme';
+import { useAdminTheme } from './AdminThemeContext';
 
 export interface KnowledgeBaseManagerProps {
   apiBaseUrl: string;
@@ -21,6 +22,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
   agentId,
   theme,
 }) => {
+  const { colors } = useAdminTheme();
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,24 +140,25 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
       ref={containerRef}
       className="agentinabox-kb-root"
       style={{
-        fontFamily: 'var(--agent-font)',
-        backgroundColor: 'var(--agent-bg)',
-        borderRadius: 'var(--agent-radius)',
-        border: '1px solid var(--agent-secondary)',
+        fontFamily: mergedTheme.fontFamily || 'inherit',
+        backgroundColor: colors.bgCard,
+        borderRadius: 12,
+        border: `1px solid ${colors.border}`,
         width: '100%',
         maxWidth: 520,
         boxSizing: 'border-box',
-        padding: 12,
+        padding: 16,
+        boxShadow: colors.shadow,
       }}
     >
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ marginBottom: 12 }}>
         <h2
           style={{
             margin: 0,
             marginBottom: 4,
             fontSize: 16,
             fontWeight: 600,
-            color: 'var(--agent-text)',
+            color: colors.text,
           }}
         >
           Knowledge Base
@@ -164,7 +167,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           style={{
             margin: 0,
             fontSize: 12,
-            color: '#6b7280',
+            color: colors.textMuted,
           }}
         >
           Upload reference files or add text snippets that the agent can use when answering questions.
@@ -175,10 +178,10 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         <div
           style={{
             marginBottom: 8,
-            padding: '6px 8px',
+            padding: '8px 12px',
             borderRadius: 6,
-            backgroundColor: '#fef2f2',
-            color: '#b91c1c',
+            backgroundColor: colors.errorLight,
+            color: colors.error,
             fontSize: 12,
           }}
         >
@@ -191,15 +194,15 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
-          marginBottom: 12,
+          marginBottom: 16,
         }}
       >
-        <form onSubmit={handleUploadFile} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 12, fontWeight: 500 }}>Upload file</label>
+        <form onSubmit={handleUploadFile} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{ fontSize: 12, fontWeight: 500, color: colors.text }}>Upload file</label>
           <input
             type="file"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            style={{ fontSize: 12 }}
+            style={{ fontSize: 12, color: colors.text }}
           />
           <input
             type="text"
@@ -207,9 +210,11 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
             value={fileTitle}
             onChange={(e) => setFileTitle(e.target.value)}
             style={{
-              padding: '4px 6px',
+              padding: '8px 12px',
               borderRadius: 6,
-              border: '1px solid var(--agent-secondary)',
+              border: `1px solid ${colors.border}`,
+              backgroundColor: colors.bgInput,
+              color: colors.text,
               fontSize: 12,
               fontFamily: 'inherit',
             }}
@@ -219,14 +224,14 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
             disabled={uploadingFile || !file}
             style={{
               alignSelf: 'flex-end',
-              padding: '4px 10px',
-              borderRadius: 999,
+              padding: '6px 14px',
+              borderRadius: 6,
               border: 'none',
-              backgroundColor: 'var(--agent-primary)',
+              backgroundColor: uploadingFile || !file ? colors.primaryLight : colors.primary,
               color: '#ffffff',
               fontSize: 12,
+              fontWeight: 500,
               cursor: uploadingFile || !file ? 'default' : 'pointer',
-              opacity: uploadingFile || !file ? 0.6 : 1,
             }}
           >
             {uploadingFile ? 'Uploading…' : 'Upload file'}
@@ -239,19 +244,20 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 4,
+          marginBottom: 8,
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 500 }}>Documents</span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: colors.text }}>Documents</span>
         <button
           type="button"
           onClick={loadDocuments}
           disabled={loading}
           style={{
-            padding: '2px 8px',
-            borderRadius: 999,
-            border: '1px solid var(--agent-secondary)',
-            backgroundColor: '#f9fafb',
+            padding: '4px 10px',
+            borderRadius: 6,
+            border: `1px solid ${colors.border}`,
+            backgroundColor: colors.bgSecondary,
+            color: colors.textSecondary,
             fontSize: 11,
             cursor: loading ? 'default' : 'pointer',
             opacity: loading ? 0.7 : 1,
@@ -265,59 +271,61 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         style={{
           maxHeight: 220,
           overflowY: 'auto',
-          borderRadius: 6,
-          border: '1px solid var(--agent-secondary)',
-          backgroundColor: '#f9fafb',
+          borderRadius: 8,
+          border: `1px solid ${colors.border}`,
+          backgroundColor: colors.bgSecondary,
         }}
       >
         {documents.length === 0 ? (
-          <div style={{ padding: 8, fontSize: 12, color: '#6b7280' }}>
+          <div style={{ padding: 12, fontSize: 12, color: colors.textMuted }}>
             No documents yet. Add text or upload a file to prime the knowledge base.
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ backgroundColor: '#e5e7eb' }}>
-                <th style={{ textAlign: 'left', padding: '4px 6px' }}>Title</th>
-                <th style={{ textAlign: 'left', padding: '4px 6px' }}>Type</th>
-                <th style={{ textAlign: 'right', padding: '4px 6px' }}>Size</th>
-                <th style={{ textAlign: 'right', padding: '4px 6px' }}>Created</th>
-                <th style={{ padding: '4px 6px' }}></th>
+              <tr style={{ backgroundColor: colors.bgHover }}>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: colors.text }}>Title</th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: colors.text }}>Type</th>
+                <th style={{ textAlign: 'right', padding: '8px 10px', color: colors.text }}>Size</th>
+                <th style={{ textAlign: 'right', padding: '8px 10px', color: colors.text }}>Created</th>
+                <th style={{ padding: '8px 10px' }}></th>
               </tr>
             </thead>
             <tbody>
               {documents.map((doc) => (
                 <tr key={doc.id}>
-                  <td style={{ padding: '4px 6px', borderTop: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '8px 10px', borderTop: `1px solid ${colors.border}`, color: colors.text }}>
                     {doc.title}
                   </td>
-                  <td style={{ padding: '4px 6px', borderTop: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '8px 10px', borderTop: `1px solid ${colors.border}`, color: colors.textSecondary }}>
                     {doc.sourceType || (doc.mimeType ? 'file' : 'text')}
                   </td>
                   <td
                     style={{
-                      padding: '4px 6px',
-                      borderTop: '1px solid #e5e7eb',
+                      padding: '8px 10px',
+                      borderTop: `1px solid ${colors.border}`,
                       textAlign: 'right',
                       whiteSpace: 'nowrap',
+                      color: colors.textSecondary,
                     }}
                   >
                     {formatSize(doc.size)}
                   </td>
                   <td
                     style={{
-                      padding: '4px 6px',
-                      borderTop: '1px solid #e5e7eb',
+                      padding: '8px 10px',
+                      borderTop: `1px solid ${colors.border}`,
                       textAlign: 'right',
                       whiteSpace: 'nowrap',
+                      color: colors.textSecondary,
                     }}
                   >
                     {formatDate(doc.createdAt)}
                   </td>
                   <td
                     style={{
-                      padding: '4px 6px',
-                      borderTop: '1px solid #e5e7eb',
+                      padding: '8px 10px',
+                      borderTop: `1px solid ${colors.border}`,
                       textAlign: 'center',
                     }}
                   >
@@ -325,11 +333,11 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
                       type="button"
                       onClick={() => handleDeleteDocument(doc.id)}
                       style={{
-                        padding: '2px 6px',
-                        borderRadius: 999,
+                        padding: '4px 8px',
+                        borderRadius: 6,
                         border: 'none',
-                        backgroundColor: '#fee2e2',
-                        color: '#b91c1c',
+                        backgroundColor: colors.errorLight,
+                        color: colors.error,
                         fontSize: 11,
                         cursor: 'pointer',
                       }}

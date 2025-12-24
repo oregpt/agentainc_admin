@@ -350,6 +350,40 @@ Previously, the avatar setting required a URL. Now admins can upload images dire
 
 ---
 
+### Admin Console Light/Dark Mode
+
+**Feature Added:** Theme toggle for the admin console with AgenticLedger-style light mode
+
+The admin console now supports both light and dark modes:
+
+- **Light Mode** (default): Matches AgenticLedger-Prod styling
+  - White backgrounds (`#ffffff`)
+  - Primary Blue (`#3b82f6`)
+  - Light gray borders (`#e2e8f0`)
+  - Near-black text (`#0f172a`)
+
+- **Dark Mode**: Original dark styling preserved
+  - Dark backgrounds (`#0f172a`, `#020617`)
+  - Same primary blue accent
+  - Dark gray borders (`#374151`)
+  - Light text (`#e5e7eb`)
+
+**Implementation:**
+- New `AdminThemeContext.tsx` with React Context for theme state
+- Theme toggle button in header (sun/moon icons)
+- localStorage persistence for user preference
+- Defaults to light mode
+
+**Files Modified:**
+- `web/src/AdminThemeContext.tsx` - New theme context with color palettes
+- `web/src/App.tsx` - Wrapped in AdminThemeProvider, added ThemeToggle
+- `web/src/pages/AgentConfig.tsx` - Updated to use theme colors
+- `web/src/pages/Capabilities.tsx` - Updated to use theme colors
+- `web/src/KnowledgeBaseManager.tsx` - Updated to use theme colors
+- `web/src/pages/Tools.tsx` - Updated to use theme colors
+
+---
+
 ## Known Issues / TODO
 
 1. ~~**Capabilities tab shows "Failed to load"**~~ - Fixed: Added ALTER TABLE for `category` column
@@ -371,3 +405,4 @@ Previously, the avatar setting required a URL. Now admins can upload images dire
 | Dec 24, 2025 | Per-Agent API Keys | Additive - encrypted storage per agent |
 | Dec 24, 2025 | Full Branding System | Additive - 25+ customizable theme properties |
 | Dec 24, 2025 | Avatar File Upload | Additive - file picker replaces URL input |
+| Dec 24, 2025 | Admin Light/Dark Mode | Additive - theme toggle with AgenticLedger-style light mode |

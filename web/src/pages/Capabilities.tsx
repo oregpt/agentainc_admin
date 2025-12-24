@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useAdminTheme } from '../AdminThemeContext';
 
 interface Capability {
   id: string;
@@ -17,6 +18,7 @@ interface CapabilitiesProps {
 }
 
 export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
+  const { colors } = useAdminTheme();
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [capabilities, setCapabilities] = useState<Capability[]>([]);
@@ -154,31 +156,33 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
   if (loading) {
     return (
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
-        <div style={{ color: '#9ca3af' }}>Loading capabilities...</div>
+        <div style={{ color: colors.textSecondary }}>Loading capabilities...</div>
       </div>
     );
   }
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Capabilities</h1>
-      <p style={{ color: '#9ca3af', marginBottom: 24, fontSize: 14 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8, color: colors.text }}>Capabilities</h1>
+      <p style={{ color: colors.textSecondary, marginBottom: 24, fontSize: 14 }}>
         Enable integrations and configure API credentials per agent. Each agent can have different capabilities enabled.
       </p>
 
       {/* Agent Selector */}
       <div
         style={{
-          background: '#020617',
+          background: colors.bgCard,
           borderRadius: 12,
           padding: 16,
           marginBottom: 16,
           display: 'flex',
           alignItems: 'center',
           gap: 12,
+          border: `1px solid ${colors.border}`,
+          boxShadow: colors.shadow,
         }}
       >
-        <label style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap' }}>Agent:</label>
+        <label style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: colors.text }}>Agent:</label>
         <select
           value={selectedAgentId}
           onChange={(e) => setSelectedAgentId(e.target.value)}
@@ -186,9 +190,9 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
             flex: 1,
             padding: '10px 14px',
             borderRadius: 8,
-            border: '1px solid #374151',
-            backgroundColor: '#0f172a',
-            color: '#e5e7eb',
+            border: `1px solid ${colors.border}`,
+            backgroundColor: colors.bgInput,
+            color: colors.text,
             fontSize: 14,
           }}
         >
@@ -204,11 +208,12 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
       {mcpStatus && (
         <div
           style={{
-            background: '#020617',
+            background: colors.bgCard,
             borderRadius: 12,
             padding: 16,
             marginBottom: 24,
-            border: '1px solid #1e293b',
+            border: `1px solid ${colors.border}`,
+            boxShadow: colors.shadow,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -217,12 +222,12 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                 width: 10,
                 height: 10,
                 borderRadius: '50%',
-                background: mcpStatus.activeServers > 0 ? '#22c55e' : '#ef4444',
+                background: mcpStatus.activeServers > 0 ? colors.success : colors.error,
               }}
             />
-            <span style={{ fontWeight: 500 }}>MCP Hub Status</span>
+            <span style={{ fontWeight: 500, color: colors.text }}>MCP Hub Status</span>
           </div>
-          <div style={{ fontSize: 13, color: '#9ca3af' }}>
+          <div style={{ fontSize: 13, color: colors.textSecondary }}>
             {mcpStatus.activeServers} server(s) active, {mcpStatus.totalTools} tools available
           </div>
         </div>
@@ -231,8 +236,8 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
       {error && (
         <div
           style={{
-            background: '#7f1d1d',
-            color: '#fca5a5',
+            background: colors.errorLight,
+            color: colors.error,
             padding: 12,
             borderRadius: 8,
             marginBottom: 16,
@@ -248,17 +253,18 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
           <div
             key={cap.id}
             style={{
-              background: '#020617',
+              background: colors.bgCard,
               borderRadius: 12,
               padding: 16,
-              border: `1px solid ${cap.agentEnabled ? '#1e40af' : '#1e293b'}`,
+              border: `1px solid ${cap.agentEnabled ? colors.primary : colors.border}`,
               transition: 'border-color 0.2s',
+              boxShadow: colors.shadow,
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 16, fontWeight: 600 }}>{cap.name}</span>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: colors.text }}>{cap.name}</span>
                   {cap.category && (
                     <span
                       style={{
@@ -284,7 +290,7 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                     {cap.type === 'anyapi' ? 'AnyAPI' : 'MCP'}
                   </span>
                 </div>
-                <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+                <p style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
                   {cap.description}
                 </p>
 
@@ -293,12 +299,12 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {cap.hasTokens ? (
                       <>
-                        <span style={{ color: '#22c55e', fontSize: 12 }}>✓ Credentials configured</span>
+                        <span style={{ color: colors.success, fontSize: 12 }}>✓ Credentials configured</span>
                         <button
                           onClick={() => openTokenModal(cap)}
                           style={{
                             fontSize: 12,
-                            color: '#60a5fa',
+                            color: colors.primary,
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -311,7 +317,7 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                           onClick={() => deleteTokens(cap)}
                           style={{
                             fontSize: 12,
-                            color: '#f87171',
+                            color: colors.error,
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -328,9 +334,9 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                           fontSize: 12,
                           padding: '4px 12px',
                           borderRadius: 6,
-                          border: '1px solid #374151',
-                          background: '#1f2937',
-                          color: '#e5e7eb',
+                          border: `1px solid ${colors.border}`,
+                          background: colors.bgSecondary,
+                          color: colors.text,
                           cursor: 'pointer',
                         }}
                       >
@@ -349,7 +355,7 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                   height: 26,
                   borderRadius: 999,
                   border: 'none',
-                  background: cap.agentEnabled ? '#3b82f6' : '#374151',
+                  background: cap.agentEnabled ? colors.primary : colors.border,
                   cursor: 'pointer',
                   position: 'relative',
                   transition: 'background 0.2s',
@@ -378,7 +384,7 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
           style={{
             textAlign: 'center',
             padding: 48,
-            color: '#6b7280',
+            color: colors.textMuted,
           }}
         >
           No capabilities available. They will be seeded on server startup.
@@ -404,24 +410,25 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
         >
           <div
             style={{
-              background: '#0f172a',
+              background: colors.bgCard,
               borderRadius: 16,
               padding: 24,
               width: 400,
               maxWidth: '90%',
+              border: `1px solid ${colors.border}`,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: colors.text }}>
               Configure {selectedCap.name}
             </h3>
-            <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 20 }}>
+            <p style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 20 }}>
               Enter your API credentials. They will be encrypted before storage.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label style={{ fontSize: 13, color: '#9ca3af', display: 'block', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, color: colors.textSecondary, display: 'block', marginBottom: 6 }}>
                   API Key
                 </label>
                 <input
@@ -433,9 +440,9 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: 8,
-                    border: '1px solid #374151',
-                    background: '#020617',
-                    color: '#e5e7eb',
+                    border: `1px solid ${colors.border}`,
+                    background: colors.bgInput,
+                    color: colors.text,
                     fontSize: 14,
                     boxSizing: 'border-box',
                   }}
@@ -443,7 +450,7 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
               </div>
 
               <div>
-                <label style={{ fontSize: 13, color: '#9ca3af', display: 'block', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, color: colors.textSecondary, display: 'block', marginBottom: 6 }}>
                   Secret Key (optional)
                 </label>
                 <input
@@ -455,9 +462,9 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: 8,
-                    border: '1px solid #374151',
-                    background: '#020617',
-                    color: '#e5e7eb',
+                    border: `1px solid ${colors.border}`,
+                    background: colors.bgInput,
+                    color: colors.text,
                     fontSize: 14,
                     boxSizing: 'border-box',
                   }}
@@ -471,9 +478,9 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                     flex: 1,
                     padding: '10px 16px',
                     borderRadius: 8,
-                    border: '1px solid #374151',
+                    border: `1px solid ${colors.border}`,
                     background: 'transparent',
-                    color: '#9ca3af',
+                    color: colors.textSecondary,
                     fontSize: 14,
                     cursor: 'pointer',
                   }}
@@ -488,7 +495,7 @@ export const Capabilities: React.FC<CapabilitiesProps> = ({ apiBaseUrl }) => {
                     padding: '10px 16px',
                     borderRadius: 8,
                     border: 'none',
-                    background: saving || !tokenValues.token1 ? '#1e3a8a' : '#3b82f6',
+                    background: saving || !tokenValues.token1 ? colors.primaryLight : colors.primary,
                     color: '#fff',
                     fontSize: 14,
                     fontWeight: 500,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useAdminTheme } from '../AdminThemeContext';
 
 interface ModelOption {
   id: string;
@@ -66,6 +67,8 @@ export interface AgentConfigProps {
 }
 
 export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
+  const { colors } = useAdminTheme();
+
   // Agent list and selection
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
@@ -426,31 +429,33 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
   if (loadingAgents) {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        <div style={{ color: '#9ca3af', padding: 40, textAlign: 'center' }}>Loading agents...</div>
+        <div style={{ color: colors.textSecondary, padding: 40, textAlign: 'center' }}>Loading agents...</div>
       </div>
     );
   }
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Agent Configuration</h1>
-      <p style={{ color: '#9ca3af', marginBottom: 24, fontSize: 14 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8, color: colors.text }}>Agent Configuration</h1>
+      <p style={{ color: colors.textSecondary, marginBottom: 24, fontSize: 14 }}>
         Configure how your AI assistant behaves. Select an agent or create a new one.
       </p>
 
       {/* Agent Selector */}
       <div
         style={{
-          background: '#020617',
+          background: colors.bgCard,
           borderRadius: 16,
           padding: 20,
           marginBottom: 24,
           display: 'flex',
           alignItems: 'center',
           gap: 12,
+          border: `1px solid ${colors.border}`,
+          boxShadow: colors.shadow,
         }}
       >
-        <label style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap' }}>Select Agent:</label>
+        <label style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: colors.text }}>Select Agent:</label>
         <select
           value={selectedAgentId}
           onChange={(e) => setSelectedAgentId(e.target.value)}
@@ -458,9 +463,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
             flex: 1,
             padding: '10px 14px',
             borderRadius: 8,
-            border: '1px solid #374151',
-            backgroundColor: '#0f172a',
-            color: '#e5e7eb',
+            border: `1px solid ${colors.border}`,
+            backgroundColor: colors.bgInput,
+            color: colors.text,
             fontSize: 14,
           }}
         >
@@ -476,7 +481,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
             padding: '10px 16px',
             borderRadius: 8,
             border: 'none',
-            backgroundColor: '#22c55e',
+            backgroundColor: colors.success,
             color: '#fff',
             fontSize: 14,
             fontWeight: 500,
@@ -492,9 +497,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
             style={{
               padding: '10px 16px',
               borderRadius: 8,
-              border: '1px solid #dc2626',
+              border: `1px solid ${colors.error}`,
               backgroundColor: 'transparent',
-              color: '#dc2626',
+              color: colors.error,
               fontSize: 14,
               cursor: 'pointer',
             }}
@@ -507,16 +512,17 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
       {/* Configuration Form */}
       <div
         style={{
-          background: '#020617',
+          background: colors.bgCard,
           borderRadius: 16,
           padding: 24,
-          boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+          boxShadow: colors.shadowLg,
+          border: `1px solid ${colors.border}`,
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Agent Name */}
           <div>
-            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8, color: colors.text }}>
               Agent Name
             </label>
             <input
@@ -528,9 +534,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 width: '100%',
                 padding: '12px 16px',
                 borderRadius: 8,
-                border: '1px solid #1f2937',
-                backgroundColor: '#0f172a',
-                color: '#e5e7eb',
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.bgInput,
+                color: colors.text,
                 fontSize: 14,
                 boxSizing: 'border-box',
               }}
@@ -539,7 +545,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
           {/* Description */}
           <div>
-            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8, color: colors.text }}>
               Short Description
             </label>
             <input
@@ -551,9 +557,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 width: '100%',
                 padding: '12px 16px',
                 borderRadius: 8,
-                border: '1px solid #1f2937',
-                backgroundColor: '#0f172a',
-                color: '#e5e7eb',
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.bgInput,
+                color: colors.text,
                 fontSize: 14,
                 boxSizing: 'border-box',
               }}
@@ -562,7 +568,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
           {/* Model Mode Selection */}
           <div>
-            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8, color: colors.text }}>
               Model Mode
             </label>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
@@ -573,9 +579,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   flex: 1,
                   padding: '12px 16px',
                   borderRadius: 8,
-                  border: modelMode === 'single' ? '2px solid #3b82f6' : '1px solid #374151',
-                  backgroundColor: modelMode === 'single' ? '#1e3a8a' : '#0f172a',
-                  color: '#e5e7eb',
+                  border: modelMode === 'single' ? `2px solid ${colors.primary}` : `1px solid ${colors.border}`,
+                  backgroundColor: modelMode === 'single' ? colors.primaryLight : colors.bgInput,
+                  color: colors.text,
                   fontSize: 14,
                   fontWeight: 500,
                   cursor: 'pointer',
@@ -591,9 +597,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   flex: 1,
                   padding: '12px 16px',
                   borderRadius: 8,
-                  border: modelMode === 'multi' ? '2px solid #3b82f6' : '1px solid #374151',
-                  backgroundColor: modelMode === 'multi' ? '#1e3a8a' : '#0f172a',
-                  color: '#e5e7eb',
+                  border: modelMode === 'multi' ? `2px solid ${colors.primary}` : `1px solid ${colors.border}`,
+                  backgroundColor: modelMode === 'multi' ? colors.primaryLight : colors.bgInput,
+                  color: colors.text,
                   fontSize: 14,
                   fontWeight: 500,
                   cursor: 'pointer',
@@ -603,7 +609,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 Multi Model
               </button>
             </div>
-            <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
+            <p style={{ fontSize: 12, color: colors.textMuted, marginBottom: 12 }}>
               {modelMode === 'single'
                 ? 'Agent will use a single fixed model for all conversations.'
                 : 'Users can choose from allowed models in the chat interface.'}
@@ -612,7 +618,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
           {/* Default/Single Model Selection */}
           <div>
-            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8, color: colors.text }}>
               {modelMode === 'single' ? 'AI Model' : 'Default Model'}
             </label>
             <select
@@ -622,9 +628,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 width: '100%',
                 padding: '12px 16px',
                 borderRadius: 8,
-                border: '1px solid #1f2937',
-                backgroundColor: '#0f172a',
-                color: '#e5e7eb',
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.bgInput,
+                color: colors.text,
                 fontSize: 14,
                 boxSizing: 'border-box',
               }}
@@ -644,14 +650,14 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
           {/* Allowed Models (Multi-select for Multi Mode) */}
           {modelMode === 'multi' && (
             <div>
-              <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+              <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8, color: colors.text }}>
                 Allowed Models
               </label>
               <div
                 style={{
-                  border: '1px solid #1f2937',
+                  border: `1px solid ${colors.border}`,
                   borderRadius: 8,
-                  backgroundColor: '#0f172a',
+                  backgroundColor: colors.bgInput,
                   padding: 8,
                   maxHeight: 200,
                   overflowY: 'auto',
@@ -667,7 +673,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       padding: '8px 12px',
                       borderRadius: 6,
                       cursor: 'pointer',
-                      backgroundColor: allowedModels.includes(m.id) ? '#1e3a8a' : 'transparent',
+                      backgroundColor: allowedModels.includes(m.id) ? colors.primaryLight : 'transparent',
                       marginBottom: 4,
                     }}
                   >
@@ -681,15 +687,15 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                           setAllowedModels((prev) => prev.filter((id) => id !== m.id));
                         }
                       }}
-                      style={{ accentColor: '#3b82f6' }}
+                      style={{ accentColor: colors.primary }}
                     />
-                    <span style={{ fontSize: 14, color: '#e5e7eb' }}>
+                    <span style={{ fontSize: 14, color: colors.text }}>
                       {m.name} ({m.provider})
                     </span>
                   </label>
                 ))}
               </div>
-              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+              <p style={{ fontSize: 12, color: colors.textMuted, marginTop: 8 }}>
                 {allowedModels.length} model(s) selected. Users will see a dropdown in chat.
               </p>
             </div>
@@ -697,7 +703,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
           {/* System Prompt */}
           <div>
-            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+            <label style={{ fontSize: 14, fontWeight: 500, display: 'block', marginBottom: 8, color: colors.text }}>
               System Prompt
             </label>
             <textarea
@@ -709,9 +715,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 width: '100%',
                 padding: '12px 16px',
                 borderRadius: 8,
-                border: '1px solid #1f2937',
-                backgroundColor: '#0f172a',
-                color: '#e5e7eb',
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.bgInput,
+                color: colors.text,
                 fontSize: 14,
                 resize: 'vertical',
                 boxSizing: 'border-box',
@@ -722,7 +728,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
           {/* Save Button */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 13, color: saveMessage?.includes('success') ? '#22c55e' : '#9ca3af' }}>
+            <div style={{ fontSize: 13, color: saveMessage?.includes('success') ? colors.success : colors.textSecondary }}>
               {saveMessage || '\u00A0'}
             </div>
             <button
@@ -733,7 +739,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 padding: '10px 24px',
                 borderRadius: 8,
                 border: 'none',
-                backgroundColor: savingAgent ? '#1f2937' : '#3b82f6',
+                backgroundColor: savingAgent ? colors.bgSecondary : colors.primary,
                 color: '#fff',
                 fontSize: 14,
                 fontWeight: 500,
@@ -750,10 +756,12 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
       {/* Agent API Keys (Collapsible) */}
       <div
         style={{
-          background: '#020617',
+          background: colors.bgCard,
           borderRadius: 16,
           marginTop: 24,
           overflow: 'hidden',
+          border: `1px solid ${colors.border}`,
+          boxShadow: colors.shadow,
         }}
       >
         <button
@@ -766,21 +774,21 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
             justifyContent: 'space-between',
             background: 'transparent',
             border: 'none',
-            color: '#e5e7eb',
+            color: colors.text,
             cursor: 'pointer',
             fontSize: 14,
             fontWeight: 500,
           }}
         >
           <span>Agent API Keys</span>
-          <span style={{ color: '#6b7280', fontSize: 18 }}>
+          <span style={{ color: colors.textMuted, fontSize: 18 }}>
             {platformKeysExpanded ? '▲' : '▼'}
           </span>
         </button>
 
         {platformKeysExpanded && (
-          <div style={{ padding: '0 24px 24px', borderTop: '1px solid #1e293b' }}>
-            <p style={{ color: '#9ca3af', fontSize: 13, margin: '16px 0' }}>
+          <div style={{ padding: '0 24px 24px', borderTop: `1px solid ${colors.borderLight}` }}>
+            <p style={{ color: colors.textSecondary, fontSize: 13, margin: '16px 0' }}>
               Configure API keys for this agent. Keys are encrypted before storage.
               If not set, environment variables are used as fallback.
             </p>
@@ -795,21 +803,21 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                     justifyContent: 'space-between',
                     padding: '12px 16px',
                     borderRadius: 8,
-                    backgroundColor: '#0f172a',
-                    border: '1px solid #1e293b',
+                    backgroundColor: colors.bgSecondary,
+                    border: `1px solid ${colors.borderLight}`,
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2, color: colors.text }}>
                       {getKeyDisplayName(setting.key)}
                     </div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>
+                    <div style={{ fontSize: 12, color: colors.textMuted }}>
                       {setting.configured ? (
-                        <span style={{ color: '#22c55e' }}>✓ Configured (encrypted)</span>
+                        <span style={{ color: colors.success }}>✓ Configured (encrypted)</span>
                       ) : setting.fromEnv ? (
-                        <span style={{ color: '#3b82f6' }}>↳ Using environment variable (fallback)</span>
+                        <span style={{ color: colors.primary }}>↳ Using environment variable (fallback)</span>
                       ) : (
-                        <span style={{ color: '#f59e0b' }}>Not configured</span>
+                        <span style={{ color: colors.warning }}>Not configured</span>
                       )}
                     </div>
                   </div>
@@ -822,9 +830,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       style={{
                         padding: '6px 12px',
                         borderRadius: 6,
-                        border: '1px solid #374151',
+                        border: `1px solid ${colors.border}`,
                         background: 'transparent',
-                        color: '#9ca3af',
+                        color: colors.textSecondary,
                         fontSize: 12,
                         cursor: 'pointer',
                       }}
@@ -837,9 +845,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                         style={{
                           padding: '6px 12px',
                           borderRadius: 6,
-                          border: '1px solid #dc2626',
+                          border: `1px solid ${colors.error}`,
                           background: 'transparent',
-                          color: '#dc2626',
+                          color: colors.error,
                           fontSize: 12,
                           cursor: 'pointer',
                         }}
@@ -858,10 +866,12 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
       {/* Branding Section (Collapsible) */}
       <div
         style={{
-          background: '#020617',
+          background: colors.bgCard,
           borderRadius: 16,
           marginTop: 24,
           overflow: 'hidden',
+          border: `1px solid ${colors.border}`,
+          boxShadow: colors.shadow,
         }}
       >
         <button
@@ -874,48 +884,48 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
             justifyContent: 'space-between',
             background: 'transparent',
             border: 'none',
-            color: '#e5e7eb',
+            color: colors.text,
             cursor: 'pointer',
             fontSize: 14,
             fontWeight: 500,
           }}
         >
           <span>Branding & Appearance</span>
-          <span style={{ color: '#6b7280', fontSize: 18 }}>
+          <span style={{ color: colors.textMuted, fontSize: 18 }}>
             {brandingExpanded ? '▲' : '▼'}
           </span>
         </button>
 
         {brandingExpanded && (
-          <div style={{ padding: '0 24px 24px', borderTop: '1px solid #1e293b' }}>
-            <p style={{ color: '#9ca3af', fontSize: 13, margin: '16px 0' }}>
+          <div style={{ padding: '0 24px 24px', borderTop: `1px solid ${colors.borderLight}` }}>
+            <p style={{ color: colors.textSecondary, fontSize: 13, margin: '16px 0' }}>
               Customize how the chat widget looks for your users. Changes are saved per-agent.
             </p>
 
             {/* Header Settings */}
             <div style={{ marginBottom: 24 }}>
-              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Header
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Title</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Title</label>
                   <input
                     type="text"
                     value={branding.headerTitle || ''}
                     onChange={(e) => updateBranding('headerTitle', e.target.value)}
                     placeholder="AI Assistant"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13, boxSizing: 'border-box' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Subtitle</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Subtitle</label>
                   <input
                     type="text"
                     value={branding.headerSubtitle || ''}
                     onChange={(e) => updateBranding('headerSubtitle', e.target.value)}
                     placeholder="Powered by AgenticLedger"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13, boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
@@ -923,7 +933,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
             {/* Avatar Settings */}
             <div style={{ marginBottom: 24 }}>
-              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Avatar
               </h4>
               <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -939,7 +949,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       alignItems: 'center',
                       justifyContent: 'center',
                       overflow: 'hidden',
-                      border: '2px solid #374151',
+                      border: `2px solid ${colors.border}`,
                     }}
                   >
                     {branding.avatarUrl ? (
@@ -976,9 +986,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       style={{
                         padding: '8px 16px',
                         borderRadius: 6,
-                        border: '1px solid #374151',
-                        backgroundColor: '#0f172a',
-                        color: '#e5e7eb',
+                        border: `1px solid ${colors.border}`,
+                        backgroundColor: colors.bgInput,
+                        color: colors.text,
                         fontSize: 12,
                         cursor: uploadingAvatar ? 'default' : 'pointer',
                         display: 'flex',
@@ -995,9 +1005,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                         style={{
                           padding: '8px 12px',
                           borderRadius: 6,
-                          border: '1px solid #dc2626',
+                          border: `1px solid ${colors.error}`,
                           backgroundColor: 'transparent',
-                          color: '#dc2626',
+                          color: colors.error,
                           fontSize: 12,
                           cursor: uploadingAvatar ? 'default' : 'pointer',
                         }}
@@ -1007,9 +1017,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                     )}
                   </div>
                   {avatarError && (
-                    <div style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>{avatarError}</div>
+                    <div style={{ fontSize: 12, color: colors.error, marginBottom: 8 }}>{avatarError}</div>
                   )}
-                  <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
+                  <p style={{ fontSize: 11, color: colors.textMuted, margin: 0 }}>
                     Recommended: 128×128px or larger. Max 5MB. JPEG, PNG, GIF, WebP, or SVG.
                   </p>
                 </div>
@@ -1017,52 +1027,52 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
               {/* Fallback Label */}
               <div style={{ marginTop: 12 }}>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Fallback Label (shown if no image)</label>
+                <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Fallback Label (shown if no image)</label>
                 <input
                   type="text"
                   value={branding.avatarLabel || ''}
                   onChange={(e) => updateBranding('avatarLabel', e.target.value)}
                   placeholder="AI"
                   maxLength={3}
-                  style={{ width: 100, padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: 100, padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13, boxSizing: 'border-box' }}
                 />
               </div>
             </div>
 
             {/* Welcome Message */}
             <div style={{ marginBottom: 24 }}>
-              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Welcome Message
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Title</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Title</label>
                   <input
                     type="text"
                     value={branding.welcomeTitle || ''}
                     onChange={(e) => updateBranding('welcomeTitle', e.target.value)}
                     placeholder="Welcome!"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13, boxSizing: 'border-box' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Message</label>
                   <textarea
                     value={branding.welcomeMessage || ''}
                     onChange={(e) => updateBranding('welcomeMessage', e.target.value)}
                     placeholder="Ask a question or paste some context..."
                     rows={2}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box', resize: 'vertical' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13, boxSizing: 'border-box', resize: 'vertical' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Input Placeholder</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Input Placeholder</label>
                   <input
                     type="text"
                     value={branding.placeholderText || ''}
                     onChange={(e) => updateBranding('placeholderText', e.target.value)}
                     placeholder="Ask a question…"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13, boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
@@ -1070,12 +1080,12 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
             {/* Colors */}
             <div style={{ marginBottom: 24 }}>
-              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Colors
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Primary</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Primary</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input
                       type="color"
@@ -1088,12 +1098,12 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       value={branding.primaryColor || ''}
                       onChange={(e) => updateBranding('primaryColor', e.target.value)}
                       placeholder="#2563eb"
-                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 11, boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Background</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Background</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input
                       type="color"
@@ -1106,12 +1116,12 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       value={branding.backgroundColor || ''}
                       onChange={(e) => updateBranding('backgroundColor', e.target.value)}
                       placeholder="#ffffff"
-                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 11, boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Text</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Text</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input
                       type="color"
@@ -1124,12 +1134,12 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       value={branding.textColor || ''}
                       onChange={(e) => updateBranding('textColor', e.target.value)}
                       placeholder="#111827"
-                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 11, boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>User Bubble</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>User Bubble</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input
                       type="color"
@@ -1142,7 +1152,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                       value={branding.userBubbleColor || ''}
                       onChange={(e) => updateBranding('userBubbleColor', e.target.value)}
                       placeholder="#2563eb"
-                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 11, boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
@@ -1151,16 +1161,16 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
             {/* Typography */}
             <div style={{ marginBottom: 24 }}>
-              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Typography & Shape
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Font Family</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Font Family</label>
                   <select
                     value={branding.fontFamily || ''}
                     onChange={(e) => updateBranding('fontFamily', e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13 }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13 }}
                   >
                     <option value="">System Default</option>
                     <option value='"Inter", system-ui, sans-serif'>Inter</option>
@@ -1171,11 +1181,11 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Border Radius</label>
+                  <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 4 }}>Border Radius</label>
                   <select
                     value={branding.borderRadius || ''}
                     onChange={(e) => updateBranding('borderRadius', e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13 }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, backgroundColor: colors.bgInput, color: colors.text, fontSize: 13 }}
                   >
                     <option value="">Default (0.75rem)</option>
                     <option value="0">Square (0)</option>
@@ -1191,7 +1201,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
             {/* Save Button */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-              <div style={{ fontSize: 13, color: brandingMessage?.includes('saved') ? '#22c55e' : '#f87171' }}>
+              <div style={{ fontSize: 13, color: brandingMessage?.includes('saved') ? colors.success : colors.error }}>
                 {brandingMessage || '\u00A0'}
               </div>
               <button
@@ -1201,7 +1211,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   padding: '10px 20px',
                   borderRadius: 8,
                   border: 'none',
-                  backgroundColor: savingBranding ? '#1f2937' : '#22c55e',
+                  backgroundColor: savingBranding ? colors.bgSecondary : colors.success,
                   color: '#fff',
                   fontSize: 14,
                   fontWeight: 500,
@@ -1234,18 +1244,19 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
         >
           <div
             style={{
-              background: '#0f172a',
+              background: colors.bgCard,
               borderRadius: 16,
               padding: 24,
               width: 450,
               maxWidth: '90%',
+              border: `1px solid ${colors.border}`,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: colors.text }}>
               {getKeyDisplayName(editingKey)}
             </h3>
-            <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 20 }}>
+            <p style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 20 }}>
               Enter your API key. It will be encrypted before storage.
             </p>
 
@@ -1259,9 +1270,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 width: '100%',
                 padding: '12px 16px',
                 borderRadius: 8,
-                border: '1px solid #374151',
-                backgroundColor: '#020617',
-                color: '#e5e7eb',
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.bgInput,
+                color: colors.text,
                 fontSize: 14,
                 marginBottom: 16,
                 boxSizing: 'border-box',
@@ -1281,9 +1292,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   flex: 1,
                   padding: '10px 16px',
                   borderRadius: 8,
-                  border: '1px solid #374151',
+                  border: `1px solid ${colors.border}`,
                   background: 'transparent',
-                  color: '#9ca3af',
+                  color: colors.textSecondary,
                   fontSize: 14,
                   cursor: 'pointer',
                 }}
@@ -1298,7 +1309,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   padding: '10px 16px',
                   borderRadius: 8,
                   border: 'none',
-                  background: savingKey || !keyValue.trim() ? '#1e3a8a' : '#3b82f6',
+                  background: savingKey || !keyValue.trim() ? colors.primaryLight : colors.primary,
                   color: '#fff',
                   fontSize: 14,
                   fontWeight: 500,
@@ -1331,15 +1342,16 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
         >
           <div
             style={{
-              background: '#0f172a',
+              background: colors.bgCard,
               borderRadius: 16,
               padding: 24,
               width: 400,
               maxWidth: '90%',
+              border: `1px solid ${colors.border}`,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Create New Agent</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: colors.text }}>Create New Agent</h3>
             <input
               type="text"
               value={newAgentName}
@@ -1350,9 +1362,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                 width: '100%',
                 padding: '12px 16px',
                 borderRadius: 8,
-                border: '1px solid #374151',
-                backgroundColor: '#020617',
-                color: '#e5e7eb',
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.bgInput,
+                color: colors.text,
                 fontSize: 14,
                 marginBottom: 16,
                 boxSizing: 'border-box',
@@ -1368,9 +1380,9 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   flex: 1,
                   padding: '10px 16px',
                   borderRadius: 8,
-                  border: '1px solid #374151',
+                  border: `1px solid ${colors.border}`,
                   background: 'transparent',
-                  color: '#9ca3af',
+                  color: colors.textSecondary,
                   fontSize: 14,
                   cursor: 'pointer',
                 }}
@@ -1385,7 +1397,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   padding: '10px 16px',
                   borderRadius: 8,
                   border: 'none',
-                  background: creatingAgent || !newAgentName.trim() ? '#1e3a8a' : '#3b82f6',
+                  background: creatingAgent || !newAgentName.trim() ? colors.primaryLight : colors.primary,
                   color: '#fff',
                   fontSize: 14,
                   fontWeight: 500,
