@@ -104,6 +104,11 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
   const [savingBranding, setSavingBranding] = useState(false);
   const [brandingMessage, setBrandingMessage] = useState<string | null>(null);
 
+  // Avatar upload
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+
   // Load agents list and available models
   useEffect(() => {
     const loadAgents = async () => {
@@ -344,6 +349,78 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
 
   const updateBranding = (key: keyof AgentBranding, value: string | boolean) => {
     setBranding((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedAgentId) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      setAvatarError('Please select an image file (JPEG, PNG, GIF, WebP, or SVG)');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Image must be less than 5MB');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      setAvatarError(null);
+
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const res = await fetch(`${apiBaseUrl}/api/admin/agents/${selectedAgentId}/avatar`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Update local branding state with new avatar URL
+        setBranding((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
+      } else {
+        const err = await res.json();
+        setAvatarError(err.error || 'Failed to upload avatar');
+      }
+    } catch (err) {
+      console.error(err);
+      setAvatarError('Failed to upload avatar');
+    } finally {
+      setUploadingAvatar(false);
+      // Reset the file input
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (!selectedAgentId) return;
+    if (!confirm('Remove the avatar image?')) return;
+
+    try {
+      setUploadingAvatar(true);
+      const res = await fetch(`${apiBaseUrl}/api/admin/agents/${selectedAgentId}/avatar`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setBranding((prev) => {
+          const { avatarUrl, ...rest } = prev;
+          return rest;
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   if (loadingAgents) {
@@ -849,27 +926,106 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
               <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Avatar
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Avatar Image URL</label>
-                  <input
-                    type="text"
-                    value={branding.avatarUrl || ''}
-                    onChange={(e) => updateBranding('avatarUrl', e.target.value)}
-                    placeholder="https://example.com/logo.png"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
-                  />
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                {/* Avatar Preview */}
+                <div style={{ flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 12,
+                      backgroundColor: branding.avatarBgColor || '#3b82f6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      border: '2px solid #374151',
+                    }}
+                  >
+                    {branding.avatarUrl ? (
+                      <img
+                        src={branding.avatarUrl.startsWith('/') ? `${apiBaseUrl}${branding.avatarUrl}` : branding.avatarUrl}
+                        alt="Avatar"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          // If image fails to load, hide it
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 20, fontWeight: 600, color: branding.avatarTextColor || '#fff' }}>
+                        {branding.avatarLabel || 'AI'}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Avatar Label (fallback)</label>
-                  <input
-                    type="text"
-                    value={branding.avatarLabel || ''}
-                    onChange={(e) => updateBranding('avatarLabel', e.target.value)}
-                    placeholder="AI"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
-                  />
+
+                {/* Upload Controls */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                      onChange={handleAvatarUpload}
+                      style={{ display: 'none' }}
+                    />
+                    <button
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={uploadingAvatar}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 6,
+                        border: '1px solid #374151',
+                        backgroundColor: '#0f172a',
+                        color: '#e5e7eb',
+                        fontSize: 12,
+                        cursor: uploadingAvatar ? 'default' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      {uploadingAvatar ? 'Uploading...' : branding.avatarUrl ? 'Change Image' : 'Upload Image'}
+                    </button>
+                    {branding.avatarUrl && (
+                      <button
+                        onClick={handleDeleteAvatar}
+                        disabled={uploadingAvatar}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #dc2626',
+                          backgroundColor: 'transparent',
+                          color: '#dc2626',
+                          fontSize: 12,
+                          cursor: uploadingAvatar ? 'default' : 'pointer',
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  {avatarError && (
+                    <div style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>{avatarError}</div>
+                  )}
+                  <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
+                    Recommended: 128×128px or larger. Max 5MB. JPEG, PNG, GIF, WebP, or SVG.
+                  </p>
                 </div>
+              </div>
+
+              {/* Fallback Label */}
+              <div style={{ marginTop: 12 }}>
+                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Fallback Label (shown if no image)</label>
+                <input
+                  type="text"
+                  value={branding.avatarLabel || ''}
+                  onChange={(e) => updateBranding('avatarLabel', e.target.value)}
+                  placeholder="AI"
+                  maxLength={3}
+                  style={{ width: 100, padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                />
               </div>
             </div>
 

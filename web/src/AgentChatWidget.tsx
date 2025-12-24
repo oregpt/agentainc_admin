@@ -36,6 +36,13 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
 
   const mergedTheme: AgentTheme = { ...defaultTheme, ...(theme || {}) };
 
+  // Helper to resolve avatar URL (handles relative paths from uploads)
+  const resolvedAvatarUrl = mergedTheme.avatarUrl
+    ? mergedTheme.avatarUrl.startsWith('/')
+      ? `${apiBaseUrl}${mergedTheme.avatarUrl}`
+      : mergedTheme.avatarUrl
+    : undefined;
+
   useEffect(() => {
     if (containerRef.current) {
       applyTheme(containerRef.current, mergedTheme);
@@ -220,7 +227,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                 width: 28,
                 height: 28,
                 borderRadius: '999px',
-                background: mergedTheme.avatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
+                background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -230,9 +237,9 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                 overflow: 'hidden',
               }}
             >
-              {mergedTheme.avatarUrl ? (
+              {resolvedAvatarUrl ? (
                 <img
-                  src={mergedTheme.avatarUrl}
+                  src={resolvedAvatarUrl}
                   alt="Avatar"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
@@ -361,7 +368,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                       width: 24,
                       height: 24,
                       borderRadius: '999px',
-                      background: mergedTheme.avatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
+                      background: resolvedAvatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -371,9 +378,9 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                       overflow: 'hidden',
                     }}
                   >
-                    {mergedTheme.avatarUrl ? (
+                    {resolvedAvatarUrl ? (
                       <img
-                        src={mergedTheme.avatarUrl}
+                        src={resolvedAvatarUrl}
                         alt=""
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />

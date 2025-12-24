@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { db } from '../db/client';
 import { agents } from '../db/schema';
 import { ensureDefaultAgent } from '../chat/chatService';
@@ -8,6 +11,41 @@ import { getOrchestrator } from '../mcp-hub';
 import { eq } from 'drizzle-orm';
 
 export const adminRouter = Router();
+
+// Configure multer for avatar uploads
+const uploadsPath = path.join(__dirname, '../../../uploads');
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    // Ensure uploads directory exists
+    if (!fs.existsSync(uploadsPath)) {
+      fs.mkdirSync(uploadsPath, { recursive: true });
+    }
+    cb(null, uploadsPath);
+  },
+  filename: (req, file, cb) => {
+    // Use agentId + timestamp for unique filename
+    const agentId = req.params.agentId || 'unknown';
+    const ext = path.extname(file.originalname);
+    const filename = `avatar-${agentId}-${Date.now()}${ext}`;
+    cb(null, filename);
+  },
+});
+
+const avatarUpload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (_req, file, cb) => {
+    // Only allow image files
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed (JPEG, PNG, GIF, WebP, SVG)'));
+    }
+  },
+});
 
 // Get available LLM models
 adminRouter.get('/models', async (_req, res) => {
@@ -181,6 +219,94 @@ adminRouter.delete('/agents/:agentId', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete agent' });
+  }
+});
+
+// Upload avatar image for an agent
+adminRouter.post('/agents/:agentId/avatar', avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Get current agent to access existing branding
+    const rows = (await db.select().from(agents).where(eq(agents.id, agentId)).limit(1)) as any[];
+    const agent = rows[0];
+
+    if (!agent) {
+      // Clean up uploaded file if agent doesn't exist
+      fs.unlinkSync(file.path);
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    // Delete old avatar file if it exists
+    const existingBranding = agent.branding || {};
+    if (existingBranding.avatarUrl && existingBranding.avatarUrl.startsWith('/uploads/')) {
+      const oldFilePath = path.join(uploadsPath, path.basename(existingBranding.avatarUrl));
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+    }
+
+    // Build the URL path for the uploaded file
+    const avatarUrl = `/uploads/${file.filename}`;
+
+    // Update branding with new avatar URL
+    const updatedBranding = {
+      ...existingBranding,
+      avatarUrl,
+    };
+
+    await db
+      .update(agents)
+      .set({ branding: updatedBranding, updatedAt: new Date() })
+      .where(eq(agents.id, agentId));
+
+    res.json({ success: true, avatarUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to upload avatar' });
+  }
+});
+
+// Delete avatar for an agent
+adminRouter.delete('/agents/:agentId/avatar', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Get current agent
+    const rows = (await db.select().from(agents).where(eq(agents.id, agentId)).limit(1)) as any[];
+    const agent = rows[0];
+
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const existingBranding = agent.branding || {};
+
+    // Delete the file if it exists
+    if (existingBranding.avatarUrl && existingBranding.avatarUrl.startsWith('/uploads/')) {
+      const filePath = path.join(uploadsPath, path.basename(existingBranding.avatarUrl));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    // Remove avatarUrl from branding
+    const { avatarUrl, ...restBranding } = existingBranding;
+
+    await db
+      .update(agents)
+      .set({ branding: restBranding, updatedAt: new Date() })
+      .where(eq(agents.id, agentId));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete avatar' });
   }
 });
 

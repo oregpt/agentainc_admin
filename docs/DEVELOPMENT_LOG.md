@@ -315,6 +315,41 @@ Each agent can now have fully customized branding:
 
 ---
 
+### Avatar Image Upload
+
+**Feature Added:** File upload for agent avatars instead of URL input
+
+Previously, the avatar setting required a URL. Now admins can upload images directly:
+
+**Frontend Changes:**
+- Avatar section in Branding & Appearance now has a file picker
+- Live preview of the uploaded avatar
+- "Upload Image" / "Change Image" buttons
+- "Remove" button to delete uploaded avatar
+- Fallback label field (shown if no image)
+- File validation: JPEG, PNG, GIF, WebP, SVG (max 5MB)
+
+**Backend Changes:**
+- Added multer for file upload handling
+- `POST /api/admin/agents/:agentId/avatar` - Upload avatar image
+- `DELETE /api/admin/agents/:agentId/avatar` - Remove avatar image
+- Files stored in `/uploads` directory, served statically
+- Old avatars automatically deleted when replaced
+
+**Implementation Details:**
+- Files named: `avatar-{agentId}-{timestamp}.{ext}`
+- Stored as `/uploads/avatar-xxx.png` (relative URL in branding.avatarUrl)
+- Widget resolves relative URLs by prepending apiBaseUrl
+- Automatic cleanup of old avatars on replacement
+
+**Files Modified:**
+- `server/src/http/app.ts` - Static file serving for uploads
+- `server/src/http/adminRoutes.ts` - Avatar upload/delete routes with multer
+- `web/src/pages/AgentConfig.tsx` - File picker UI with preview
+- `web/src/AgentChatWidget.tsx` - Resolve relative avatar URLs
+
+---
+
 ## Known Issues / TODO
 
 1. ~~**Capabilities tab shows "Failed to load"**~~ - Fixed: Added ALTER TABLE for `category` column
@@ -335,3 +370,4 @@ Each agent can now have fully customized branding:
 | Dec 24, 2025 | Per-agent capabilities | Additive - agent selector on capabilities page |
 | Dec 24, 2025 | Per-Agent API Keys | Additive - encrypted storage per agent |
 | Dec 24, 2025 | Full Branding System | Additive - 25+ customizable theme properties |
+| Dec 24, 2025 | Avatar File Upload | Additive - file picker replaces URL input |

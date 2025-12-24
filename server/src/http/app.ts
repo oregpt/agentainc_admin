@@ -1,11 +1,19 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { chatRouter } from './chatRoutes';
 import { capabilityRouter } from './capabilityRoutes';
 import { kbRouter } from './kbRoutes';
 import { ragRouter } from './ragRoutes';
 import { adminRouter } from './adminRoutes';
+
+// Ensure uploads directory exists
+const uploadsPath = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+  console.log('[app] Created uploads directory:', uploadsPath);
+}
 
 export function createHttpApp() {
   const app = express();
@@ -13,6 +21,9 @@ export function createHttpApp() {
   // Enable CORS for all origins (dev mode)
   app.use(cors());
   app.use(express.json());
+
+  // Serve uploaded files statically
+  app.use('/uploads', express.static(uploadsPath));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'agentinabox-server' });
