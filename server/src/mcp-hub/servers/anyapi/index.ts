@@ -318,7 +318,7 @@ export class AnyAPIMCPServer implements MCPServerInstance {
       ...(validated.authType && { authType: validated.authType }),
       ...(validated.authHeaderName && { authHeaderName: validated.authHeaderName }),
       ...(validated.authQueryParam && { authQueryParam: validated.authQueryParam }),
-      endpoints: validated.endpoints.map((e) => ({
+      endpoints: validated.endpoints.map((e: AddCustomAPIInput['endpoints'][number]) => ({
         name: e.name,
         path: e.path,
         method: e.method,

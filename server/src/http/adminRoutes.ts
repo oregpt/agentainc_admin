@@ -228,6 +228,10 @@ adminRouter.post('/agents/:agentId/avatar', avatarUpload.single('avatar'), async
     const { agentId } = req.params;
     const file = req.file;
 
+    if (!agentId) {
+      return res.status(400).json({ error: 'Agent ID is required' });
+    }
+
     if (!file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -276,6 +280,10 @@ adminRouter.post('/agents/:agentId/avatar', avatarUpload.single('avatar'), async
 adminRouter.delete('/agents/:agentId/avatar', async (req, res) => {
   try {
     const { agentId } = req.params;
+
+    if (!agentId) {
+      return res.status(400).json({ error: 'Agent ID is required' });
+    }
 
     // Get current agent
     const rows = (await db.select().from(agents).where(eq(agents.id, agentId)).limit(1)) as any[];

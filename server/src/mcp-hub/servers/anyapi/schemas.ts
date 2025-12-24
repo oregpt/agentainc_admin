@@ -20,15 +20,15 @@ export const MakeAPICallSchema = z.object({
     .optional()
     .describe('API key or access token (required for authenticated APIs)'),
   pathParams: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .optional()
     .describe('Path parameters for URL substitution (e.g., { "id": "bitcoin" })'),
   queryParams: z
-    .record(z.any())
+    .record(z.string(), z.string())
     .optional()
     .describe('Query string parameters (e.g., { "vs_currencies": "usd" })'),
   body: z.any().optional().describe('Request body for POST/PUT/PATCH requests'),
-  headers: z.record(z.string()).optional().describe('Additional request headers'),
+  headers: z.record(z.string(), z.string()).optional().describe('Additional request headers'),
 });
 
 export type MakeAPICallInput = z.infer<typeof MakeAPICallSchema>;
