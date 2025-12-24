@@ -141,6 +141,20 @@ async function createTablesIfNotExist(): Promise<void> {
     )
   `);
 
+  // Per-agent API keys table (env vars are fallback)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ai_agent_api_keys (
+      id SERIAL PRIMARY KEY,
+      agent_id VARCHAR(64) NOT NULL,
+      key VARCHAR(64) NOT NULL,
+      encrypted_value TEXT NOT NULL,
+      iv VARCHAR(32),
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      UNIQUE(agent_id, key)
+    )
+  `);
+
   console.log('[db] All tables created/verified');
 }
 

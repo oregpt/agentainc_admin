@@ -119,3 +119,14 @@ export const capabilitySecrets = pgTable('ai_capability_secrets', {
   encryptedValue: text('encrypted_value').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// Per-agent API keys - encrypted storage (env vars are fallback)
+export const agentApiKeys = pgTable('ai_agent_api_keys', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 64 }).notNull(),
+  key: varchar('key', { length: 64 }).notNull(), // e.g., 'anthropic_api_key', 'openai_api_key'
+  encryptedValue: text('encrypted_value').notNull(),
+  iv: varchar('iv', { length: 32 }), // Initialization vector for AES-256-GCM
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});

@@ -186,6 +186,34 @@ In-memory cosine similarity doesn't scale. With pgvector:
 
 ---
 
+### Platform API Keys (Encrypted Storage)
+
+**Feature Added:** Configure LLM API keys via the UI with encrypted storage
+
+Previously, API keys (Anthropic, OpenAI) had to be set via environment variables. Now:
+- Collapsible "Platform API Keys" section added to Configuration page
+- Keys are encrypted with AES-256-GCM before storage in database
+- Shows status: "Set via environment variable", "Configured (encrypted)", or "Not configured"
+- Environment variables take priority over database values
+- Supports: Anthropic, OpenAI, Gemini, Grok
+
+**Database Changes:**
+- New table: `ai_platform_settings` (key, encrypted_value, iv, timestamps)
+
+**Backend Routes:**
+- `GET /api/admin/platform/settings` - Get all keys with configured/env status
+- `POST /api/admin/platform/settings/:key` - Set an API key (encrypted)
+- `DELETE /api/admin/platform/settings/:key` - Remove an API key
+
+**Files Modified:**
+- `server/src/db/schema.ts` - Added platformSettings table
+- `server/src/db/init.ts` - Create table on startup
+- `server/src/capabilities/capabilityService.ts` - Platform settings methods + getPlatformApiKey helper
+- `server/src/http/adminRoutes.ts` - Platform settings routes
+- `web/src/pages/AgentConfig.tsx` - Collapsible Platform API Keys section with modal
+
+---
+
 ### Per-Agent Capability Management
 
 **Feature Added:** Each agent can have different capabilities enabled
@@ -208,6 +236,41 @@ Previously, capabilities were global. Now:
 
 ---
 
+### Per-Agent API Keys (Refactored)
+
+**Feature Changed:** API keys are now per-agent instead of global platform settings
+
+Previously, there was a global `ai_platform_settings` table. Now:
+- Each agent can have its own API keys (Anthropic, OpenAI, Gemini, Grok)
+- Keys are stored encrypted with AES-256-GCM in `ai_agent_api_keys` table
+- **Environment variables are FALLBACK**, not primary - agent-specific keys take priority
+- When agent has no key configured, the system falls back to environment variables
+- UI shows "Configured (encrypted)" for agent keys, "Using environment variable (fallback)" for env vars
+
+**Database Changes:**
+- New table: `ai_agent_api_keys` (agent_id, key, encrypted_value, iv, timestamps)
+- Unique constraint on (agent_id, key) pair
+
+**Backend Routes:**
+- `GET /api/admin/agents/:agentId/api-keys` - Get all keys status for an agent
+- `POST /api/admin/agents/:agentId/api-keys/:key` - Set an API key for an agent
+- `DELETE /api/admin/agents/:agentId/api-keys/:key` - Remove an API key for an agent
+
+**Helper Function:**
+```typescript
+// In capabilityService.ts - checks agent DB first, then falls back to env var
+export async function getAgentApiKeyWithFallback(agentId: string, key: string): Promise<string | null>
+```
+
+**Files Modified:**
+- `server/src/db/schema.ts` - Changed platformSettings to agentApiKeys with agentId
+- `server/src/db/init.ts` - Updated table creation with new schema
+- `server/src/capabilities/capabilityService.ts` - Per-agent API key methods
+- `server/src/http/adminRoutes.ts` - Per-agent API key routes
+- `web/src/pages/AgentConfig.tsx` - Updated to use per-agent routes, renamed section
+
+---
+
 ## Known Issues / TODO
 
 1. ~~**Capabilities tab shows "Failed to load"**~~ - Fixed: Added ALTER TABLE for `category` column
@@ -226,3 +289,4 @@ Previously, capabilities were global. Now:
 | Dec 24, 2025 | pgvector embeddings | Breaking - requires pgvector extension |
 | Dec 24, 2025 | Capabilities system | Additive - new tables and routes |
 | Dec 24, 2025 | Per-agent capabilities | Additive - agent selector on capabilities page |
+| Dec 24, 2025 | Per-Agent API Keys | Additive - encrypted storage per agent |

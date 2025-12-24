@@ -6,7 +6,7 @@
 
 import crypto from 'crypto';
 import { db } from '../db/client';
-import { capabilities, agentCapabilities, capabilityTokens } from '../db/schema';
+import { capabilities, agentCapabilities, capabilityTokens, agentApiKeys } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { Capability } from '../mcp-hub/types';
 
@@ -385,6 +385,126 @@ export class CapabilityService {
       }
     }
   }
+
+  // ============================================================================
+  // Per-Agent API Keys (env vars are fallback)
+  // ============================================================================
+
+  /**
+   * Set an API key for an agent (encrypted)
+   */
+  async setAgentApiKey(agentId: string, key: string, value: string): Promise<void> {
+    const { encrypted, iv } = encrypt(value);
+
+    const existing = await db
+      .select()
+      .from(agentApiKeys)
+      .where(and(eq(agentApiKeys.agentId, agentId), eq(agentApiKeys.key, key)));
+
+    if (existing.length > 0) {
+      await db
+        .update(agentApiKeys)
+        .set({
+          encryptedValue: encrypted,
+          iv,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(agentApiKeys.agentId, agentId), eq(agentApiKeys.key, key)));
+    } else {
+      await db.insert(agentApiKeys).values({
+        agentId,
+        key,
+        encryptedValue: encrypted,
+        iv,
+      });
+    }
+  }
+
+  /**
+   * Get an API key for an agent (decrypted)
+   */
+  async getAgentApiKey(agentId: string, key: string): Promise<string | null> {
+    const rows = await db
+      .select()
+      .from(agentApiKeys)
+      .where(and(eq(agentApiKeys.agentId, agentId), eq(agentApiKeys.key, key)));
+
+    const row = rows[0];
+    if (!row || !row.iv) return null;
+
+    try {
+      return decrypt(row.encryptedValue, row.iv);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if an agent has an API key configured (without decrypting)
+   */
+  async hasAgentApiKey(agentId: string, key: string): Promise<boolean> {
+    const rows = await db
+      .select()
+      .from(agentApiKeys)
+      .where(and(eq(agentApiKeys.agentId, agentId), eq(agentApiKeys.key, key)));
+
+    return rows.length > 0;
+  }
+
+  /**
+   * Delete an API key for an agent
+   */
+  async deleteAgentApiKey(agentId: string, key: string): Promise<void> {
+    await db.delete(agentApiKeys).where(and(eq(agentApiKeys.agentId, agentId), eq(agentApiKeys.key, key)));
+  }
+
+  /**
+   * Get all API key status for an agent
+   */
+  async getAgentApiKeysStatus(agentId: string): Promise<{ key: string; configured: boolean; fromEnv: boolean }[]> {
+    const keys = ['anthropic_api_key', 'openai_api_key', 'gemini_api_key', 'grok_api_key'];
+    const envMap: Record<string, string> = {
+      anthropic_api_key: 'ANTHROPIC_API_KEY',
+      openai_api_key: 'OPENAI_API_KEY',
+      gemini_api_key: 'GEMINI_API_KEY',
+      grok_api_key: 'GROK_API_KEY',
+    };
+
+    const results: { key: string; configured: boolean; fromEnv: boolean }[] = [];
+
+    for (const key of keys) {
+      const configured = await this.hasAgentApiKey(agentId, key);
+      const envVar = envMap[key];
+      const fromEnv = !!(envVar && process.env[envVar]);
+      results.push({ key, configured, fromEnv });
+    }
+
+    return results;
+  }
+}
+
+// Helper function: Get API key for an agent (checks agent first, then env var as fallback)
+export async function getAgentApiKeyWithFallback(agentId: string, key: string): Promise<string | null> {
+  // First check agent-specific key in database
+  const agentKey = await capabilityService.getAgentApiKey(agentId, key);
+  if (agentKey) {
+    return agentKey;
+  }
+
+  // Fall back to environment variable
+  const envMap: Record<string, string> = {
+    anthropic_api_key: 'ANTHROPIC_API_KEY',
+    openai_api_key: 'OPENAI_API_KEY',
+    gemini_api_key: 'GEMINI_API_KEY',
+    grok_api_key: 'GROK_API_KEY',
+  };
+
+  const envVar = envMap[key];
+  if (envVar && process.env[envVar]) {
+    return process.env[envVar]!;
+  }
+
+  return null;
 }
 
 // Export singleton

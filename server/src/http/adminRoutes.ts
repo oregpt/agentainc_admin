@@ -343,6 +343,63 @@ adminRouter.delete('/capabilities/:capabilityId', async (req, res) => {
 });
 
 // ============================================================================
+// Per-Agent API Keys Routes
+// ============================================================================
+
+// Get API key status for an agent
+adminRouter.get('/agents/:agentId/api-keys', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const settings = await capabilityService.getAgentApiKeysStatus(agentId);
+    res.json({ settings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load API keys' });
+  }
+});
+
+// Set an API key for an agent
+adminRouter.post('/agents/:agentId/api-keys/:key', async (req, res) => {
+  try {
+    const { agentId, key } = req.params;
+    const { value } = req.body as { value: string };
+
+    const allowedKeys = ['anthropic_api_key', 'openai_api_key', 'gemini_api_key', 'grok_api_key'];
+    if (!allowedKeys.includes(key)) {
+      return res.status(400).json({ error: 'Invalid API key type' });
+    }
+
+    if (!value || typeof value !== 'string') {
+      return res.status(400).json({ error: 'Value is required' });
+    }
+
+    await capabilityService.setAgentApiKey(agentId, key, value);
+    res.json({ success: true, key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save API key' });
+  }
+});
+
+// Delete an API key for an agent
+adminRouter.delete('/agents/:agentId/api-keys/:key', async (req, res) => {
+  try {
+    const { agentId, key } = req.params;
+
+    const allowedKeys = ['anthropic_api_key', 'openai_api_key', 'gemini_api_key', 'grok_api_key'];
+    if (!allowedKeys.includes(key)) {
+      return res.status(400).json({ error: 'Invalid API key type' });
+    }
+
+    await capabilityService.deleteAgentApiKey(agentId, key);
+    res.json({ success: true, key });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete API key' });
+  }
+});
+
+// ============================================================================
 // MCP Hub Routes
 // ============================================================================
 
