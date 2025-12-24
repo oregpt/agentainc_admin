@@ -3,6 +3,117 @@ import { AgentTheme, defaultTheme, applyTheme } from './theme';
 
 export type AgentChatWidgetMode = 'inline' | 'launcher';
 
+// ============================================================================
+// CAPABILITY METADATA - Icons, names, colors for each capability
+// ============================================================================
+const CAPABILITY_METADATA: Record<string, { icon: string; name: string; color: string; description: string }> = {
+  anyapi: {
+    icon: '🔌',
+    name: 'AnyAPI',
+    color: '#8b5cf6',
+    description: 'Call any API through natural language',
+  },
+  coingecko: {
+    icon: '₿',
+    name: 'Crypto',
+    color: '#f7931a',
+    description: 'Cryptocurrency prices and market data',
+  },
+  openweather: {
+    icon: '🌤️',
+    name: 'Weather',
+    color: '#0ea5e9',
+    description: 'Current weather and forecasts',
+  },
+  slack: {
+    icon: '💬',
+    name: 'Slack',
+    color: '#4a154b',
+    description: 'Send messages and manage channels',
+  },
+  gmail: {
+    icon: '📧',
+    name: 'Gmail',
+    color: '#ea4335',
+    description: 'Read and send emails',
+  },
+  calendar: {
+    icon: '📅',
+    name: 'Calendar',
+    color: '#4285f4',
+    description: 'Manage calendar events',
+  },
+  sheets: {
+    icon: '📊',
+    name: 'Sheets',
+    color: '#34a853',
+    description: 'Read and write spreadsheets',
+  },
+  docs: {
+    icon: '📄',
+    name: 'Docs',
+    color: '#4285f4',
+    description: 'Create and edit documents',
+  },
+};
+
+// ============================================================================
+// CAPABILITY COMMANDS - Quick actions for each capability
+// ============================================================================
+interface CapabilityCommand {
+  shortcut: string;
+  naturalLanguage: string;
+  category: 'query' | 'action' | 'analysis';
+}
+
+const CAPABILITY_COMMANDS: Record<string, CapabilityCommand[]> = {
+  coingecko: [
+    { shortcut: '/price', naturalLanguage: 'What is the current price of Bitcoin?', category: 'query' },
+    { shortcut: '/trending', naturalLanguage: 'Show me trending cryptocurrencies', category: 'query' },
+    { shortcut: '/market', naturalLanguage: 'Give me overall crypto market stats', category: 'analysis' },
+  ],
+  openweather: [
+    { shortcut: '/weather', naturalLanguage: 'What is the weather in New York?', category: 'query' },
+    { shortcut: '/forecast', naturalLanguage: 'Show me the 5-day forecast for London', category: 'query' },
+  ],
+  anyapi: [
+    { shortcut: '/api', naturalLanguage: 'Call an API endpoint', category: 'action' },
+    { shortcut: '/list-apis', naturalLanguage: 'List available APIs', category: 'query' },
+  ],
+  slack: [
+    { shortcut: '/send-slack', naturalLanguage: 'Send a message to #general', category: 'action' },
+    { shortcut: '/channels', naturalLanguage: 'List my Slack channels', category: 'query' },
+  ],
+  gmail: [
+    { shortcut: '/inbox', naturalLanguage: 'Show my recent emails', category: 'query' },
+    { shortcut: '/send-email', naturalLanguage: 'Send an email', category: 'action' },
+  ],
+  calendar: [
+    { shortcut: '/events', naturalLanguage: 'Show my upcoming events', category: 'query' },
+    { shortcut: '/schedule', naturalLanguage: 'Schedule a meeting', category: 'action' },
+  ],
+  sheets: [
+    { shortcut: '/read-sheet', naturalLanguage: 'Read data from a spreadsheet', category: 'query' },
+    { shortcut: '/update-sheet', naturalLanguage: 'Update spreadsheet data', category: 'action' },
+  ],
+  docs: [
+    { shortcut: '/create-doc', naturalLanguage: 'Create a new document', category: 'action' },
+    { shortcut: '/read-doc', naturalLanguage: 'Read a document', category: 'query' },
+  ],
+};
+
+// Fallback for capabilities without predefined commands
+const getDefaultCommands = (capabilityId: string): CapabilityCommand[] => [
+  { shortcut: `/${capabilityId}`, naturalLanguage: `Use ${capabilityId} capability`, category: 'action' },
+];
+
+interface EnabledCapability {
+  id: string;
+  name: string;
+  description: string;
+  category: string | null;
+}
+
 export interface PreChatFormConfig {
   enabled: boolean;
   fields?: {
@@ -211,9 +322,15 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
   const [userInfo, setUserInfo] = useState<UserInfo>({});
   const [attachments, setAttachments] = useState<File[]>([]);
 
+  // Command selector state
+  const [showCommandPopover, setShowCommandPopover] = useState(false);
+  const [enabledCapabilities, setEnabledCapabilities] = useState<EnabledCapability[]>([]);
+  const [selectedCapability, setSelectedCapability] = useState<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const commandButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const mergedTheme: AgentTheme = { ...defaultTheme, ...(theme || {}) };
 
@@ -235,6 +352,46 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
       applyTheme(containerRef.current, mergedTheme);
     }
   }, [mergedTheme]);
+
+  // Fetch enabled capabilities for the agent
+  useEffect(() => {
+    if (!agentId) return;
+
+    const fetchCapabilities = async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/api/capabilities/agent/${agentId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEnabledCapabilities(data.capabilities || []);
+        }
+      } catch (err) {
+        console.error('[widget] Failed to fetch capabilities:', err);
+      }
+    };
+
+    fetchCapabilities();
+  }, [apiBaseUrl, agentId]);
+
+  // Close command popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        showCommandPopover &&
+        commandButtonRef.current &&
+        !commandButtonRef.current.contains(e.target as Node)
+      ) {
+        // Check if click is inside the popover
+        const popover = document.querySelector('.agentinabox-command-popover');
+        if (popover && !popover.contains(e.target as Node)) {
+          setShowCommandPopover(false);
+          setSelectedCapability(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCommandPopover]);
 
   // Start conversation
   useEffect(() => {
@@ -300,6 +457,45 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
 
   const removeAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Command handlers
+  const handleInsertCommand = (text: string) => {
+    setInput(text);
+    setShowCommandPopover(false);
+    setSelectedCapability(null);
+  };
+
+  const handleSendCommand = (text: string) => {
+    setInput(text);
+    setShowCommandPopover(false);
+    setSelectedCapability(null);
+    // Send immediately after state update
+    setTimeout(() => {
+      sendMessage();
+    }, 50);
+  };
+
+  const toggleCommandPopover = () => {
+    setShowCommandPopover((prev) => !prev);
+    if (showCommandPopover) {
+      setSelectedCapability(null);
+    }
+  };
+
+  // Get metadata for a capability (with fallback)
+  const getCapabilityMeta = (capId: string) => {
+    return CAPABILITY_METADATA[capId] || {
+      icon: '⚡',
+      name: capId,
+      color: '#6b7280',
+      description: `${capId} capability`,
+    };
+  };
+
+  // Get commands for a capability (with fallback)
+  const getCapabilityCommands = (capId: string) => {
+    return CAPABILITY_COMMANDS[capId] || getDefaultCommands(capId);
   };
 
   const sendMessage = async () => {
@@ -856,9 +1052,296 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
               borderTop: '1px solid rgba(148,163,184,0.2)',
               padding: 12,
               backgroundColor: 'rgba(255,255,255,0.98)',
+              position: 'relative',
             }}
           >
+            {/* Command Popover */}
+            {showCommandPopover && enabledCapabilities.length > 0 && (
+              <div
+                className="agentinabox-command-popover"
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 12,
+                  right: 12,
+                  marginBottom: 8,
+                  backgroundColor: '#fff',
+                  borderRadius: 12,
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.1)',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  maxHeight: 320,
+                  overflowY: 'auto',
+                  animation: 'agentinabox-scaleIn 0.15s ease-out',
+                  zIndex: 10,
+                }}
+              >
+                {/* Capability List or Command List */}
+                {selectedCapability === null ? (
+                  <div style={{ padding: 8 }}>
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: 'var(--agent-text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                      }}
+                    >
+                      Quick Actions
+                    </div>
+                    {enabledCapabilities.map((cap) => {
+                      const meta = getCapabilityMeta(cap.id);
+                      return (
+                        <button
+                          key={cap.id}
+                          onClick={() => setSelectedCapability(cap.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            width: '100%',
+                            padding: '10px 12px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'background-color 0.15s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.08)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              backgroundColor: `${meta.color}15`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 16,
+                            }}
+                          >
+                            {meta.icon}
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--agent-text)' }}>
+                              {meta.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--agent-text-secondary)' }}>
+                              {meta.description}
+                            </div>
+                          </div>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#9ca3af"
+                            strokeWidth="2"
+                          >
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ padding: 8 }}>
+                    {/* Back button */}
+                    <button
+                      onClick={() => setSelectedCapability(null)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 12px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: 'var(--agent-text-secondary)',
+                        marginBottom: 4,
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                      Back to capabilities
+                    </button>
+                    {/* Commands for selected capability */}
+                    {(() => {
+                      const meta = getCapabilityMeta(selectedCapability);
+                      const commands = getCapabilityCommands(selectedCapability);
+                      return (
+                        <>
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              borderBottom: '1px solid rgba(148,163,184,0.15)',
+                              marginBottom: 8,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: 6,
+                                backgroundColor: `${meta.color}15`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 12,
+                              }}
+                            >
+                              {meta.icon}
+                            </span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent-text)' }}>
+                              {meta.name} Commands
+                            </span>
+                          </div>
+                          {commands.map((cmd, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                padding: '10px 12px',
+                                borderRadius: 8,
+                                marginBottom: 4,
+                                backgroundColor: 'rgba(248,250,252,0.8)',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  marginBottom: 4,
+                                }}
+                              >
+                                <code
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    color: meta.color,
+                                    backgroundColor: `${meta.color}10`,
+                                    padding: '2px 6px',
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {cmd.shortcut}
+                                </code>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    color: '#9ca3af',
+                                    textTransform: 'uppercase',
+                                  }}
+                                >
+                                  {cmd.category}
+                                </span>
+                              </div>
+                              <div
+                                style={{ fontSize: 13, color: 'var(--agent-text)', marginBottom: 8 }}
+                              >
+                                {cmd.naturalLanguage}
+                              </div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  onClick={() => handleInsertCommand(cmd.naturalLanguage)}
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 10px',
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    border: '1px solid var(--agent-input-border)',
+                                    borderRadius: 6,
+                                    backgroundColor: '#fff',
+                                    color: 'var(--agent-text)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--agent-primary)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--agent-input-border)';
+                                  }}
+                                >
+                                  Insert & Edit
+                                </button>
+                                <button
+                                  onClick={() => handleSendCommand(cmd.naturalLanguage)}
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 10px',
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    background: `linear-gradient(135deg, ${meta.color}, ${meta.color}dd)`,
+                                    color: '#fff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.opacity = '0.9';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.opacity = '1';
+                                  }}
+                                >
+                                  Send →
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              {/* Command Button */}
+              {enabledCapabilities.length > 0 && (
+                <button
+                  ref={commandButtonRef}
+                  type="button"
+                  onClick={toggleCommandPopover}
+                  style={{
+                    padding: 8,
+                    borderRadius: 8,
+                    border: showCommandPopover
+                      ? '1px solid var(--agent-primary)'
+                      : '1px solid var(--agent-input-border)',
+                    background: showCommandPopover ? 'rgba(59,130,246,0.08)' : 'var(--agent-input-bg)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: showCommandPopover ? 'var(--agent-primary)' : 'var(--agent-text-secondary)',
+                    transition: 'all 0.15s',
+                  }}
+                  title="Quick commands"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                </button>
+              )}
+
               {/* Attachment Button */}
               <button
                 type="button"

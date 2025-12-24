@@ -538,6 +538,55 @@ The DocumentList component now supports multi-select functionality:
 
 ---
 
+### Capability Command Selector
+
+**Feature Added:** Quick command selector for enabled capabilities in chat widget
+
+A new command button (⚡ lightning bolt) appears in the chat input area when the agent has enabled capabilities. This provides quick access to common actions.
+
+**UI Flow:**
+1. Click the ⚡ button to open the command popover
+2. See list of enabled capabilities with icons and descriptions
+3. Click a capability to see its available commands
+4. Each command shows:
+   - Shortcut (e.g., `/price`, `/weather`)
+   - Natural language query
+   - Category badge (query/action/analysis)
+5. Two action buttons per command:
+   - "Insert & Edit" - puts text in input for modification
+   - "Send →" - sends immediately
+
+**Backend Endpoint:**
+```
+GET /api/capabilities/agent/:agentId
+```
+Returns only enabled capabilities for a specific agent (used by widget).
+
+**Implementation Details:**
+- `CAPABILITY_METADATA` - Maps capability IDs to icons, colors, display names
+- `CAPABILITY_COMMANDS` - Predefined commands per capability (shortcut, natural language, category)
+- Fallback for unknown capabilities with generic commands
+- Click-outside detection to close popover
+- Smooth scale-in animation for popover
+
+**Capabilities with Commands:**
+| Capability | Commands |
+|------------|----------|
+| coingecko | /price, /trending, /market |
+| openweather | /weather, /forecast |
+| anyapi | /api, /list-apis |
+| slack | /send-slack, /channels |
+| gmail | /inbox, /send-email |
+| calendar | /events, /schedule |
+| sheets | /read-sheet, /update-sheet |
+| docs | /create-doc, /read-doc |
+
+**Files Modified:**
+- `server/src/http/capabilityRoutes.ts` - Added `/agent/:agentId` endpoint
+- `web/src/AgentChatWidget.tsx` - Added command button, popover, metadata, handlers
+
+---
+
 ## Known Issues / TODO
 
 1. ~~**Capabilities tab shows "Failed to load"**~~ - Fixed: Added ALTER TABLE for `category` column
@@ -563,3 +612,4 @@ The DocumentList component now supports multi-select functionality:
 | Dec 24, 2025 | Knowledge Base Enhancement | Major - folders, tags, categories, full rewrite |
 | Dec 24, 2025 | Multi-Select Documents | Additive - bulk category assignment, bulk delete (max 20) |
 | Dec 24, 2025 | Chat Widget Polish | Major - Intercom-style launcher, typing indicator, file attachments |
+| Dec 24, 2025 | Capability Command Selector | Additive - quick command menu in chat widget |
