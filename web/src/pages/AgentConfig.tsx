@@ -6,6 +6,49 @@ interface ModelOption {
   provider: string;
 }
 
+interface AgentBranding {
+  // Core colors
+  primaryColor?: string;
+  secondaryColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  // Typography & Shape
+  borderRadius?: string;
+  fontFamily?: string;
+  // Header
+  headerTitle?: string;
+  headerSubtitle?: string;
+  headerGradientFrom?: string;
+  headerGradientTo?: string;
+  headerTitleColor?: string;
+  headerSubtitleColor?: string;
+  // Avatar
+  avatarUrl?: string;
+  avatarLabel?: string;
+  avatarBgColor?: string;
+  avatarTextColor?: string;
+  userAvatarLabel?: string;
+  userAvatarBgColor?: string;
+  userAvatarTextColor?: string;
+  // Message bubbles
+  userBubbleColor?: string;
+  userBubbleTextColor?: string;
+  assistantBubbleColor?: string;
+  assistantBubbleTextColor?: string;
+  // Status
+  statusActiveColor?: string;
+  statusWorkingColor?: string;
+  // Input
+  inputBgColor?: string;
+  inputBorderColor?: string;
+  placeholderText?: string;
+  // Welcome
+  welcomeTitle?: string;
+  welcomeMessage?: string;
+  // Dark mode
+  darkMode?: boolean;
+}
+
 interface Agent {
   id: string;
   slug: string;
@@ -15,6 +58,7 @@ interface Agent {
   defaultModel: string;
   modelMode?: 'single' | 'multi';
   allowedModels?: string[] | null;
+  branding?: AgentBranding | null;
 }
 
 export interface AgentConfigProps {
@@ -53,6 +97,12 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [keyValue, setKeyValue] = useState('');
   const [savingKey, setSavingKey] = useState(false);
+
+  // Branding
+  const [brandingExpanded, setBrandingExpanded] = useState(false);
+  const [branding, setBranding] = useState<AgentBranding>({});
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [brandingMessage, setBrandingMessage] = useState<string | null>(null);
 
   // Load agents list and available models
   useEffect(() => {
@@ -109,6 +159,7 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
           setSystemPrompt(a.instructions || '');
           setModelMode(a.modelMode || 'single');
           setAllowedModels(a.allowedModels || []);
+          setBranding(a.branding || {});
         }
 
         if (keysRes.ok) {
@@ -263,6 +314,36 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
       grok_api_key: 'xAI Grok API Key',
     };
     return names[key] || key;
+  };
+
+  const handleSaveBranding = async () => {
+    if (!selectedAgentId) return;
+
+    try {
+      setSavingBranding(true);
+      setBrandingMessage(null);
+      const res = await fetch(`${apiBaseUrl}/api/admin/agents/${selectedAgentId}/branding`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branding }),
+      });
+
+      if (res.ok) {
+        setBrandingMessage('Branding saved!');
+        setTimeout(() => setBrandingMessage(null), 2000);
+      } else {
+        setBrandingMessage('Failed to save branding');
+      }
+    } catch (e) {
+      console.error(e);
+      setBrandingMessage('Failed to save branding');
+    } finally {
+      setSavingBranding(false);
+    }
+  };
+
+  const updateBranding = (key: keyof AgentBranding, value: string | boolean) => {
+    setBranding((prev) => ({ ...prev, [key]: value }));
   };
 
   if (loadingAgents) {
@@ -692,6 +773,287 @@ export const AgentConfig: React.FC<AgentConfigProps> = ({ apiBaseUrl }) => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Branding Section (Collapsible) */}
+      <div
+        style={{
+          background: '#020617',
+          borderRadius: 16,
+          marginTop: 24,
+          overflow: 'hidden',
+        }}
+      >
+        <button
+          onClick={() => setBrandingExpanded(!brandingExpanded)}
+          style={{
+            width: '100%',
+            padding: '16px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'transparent',
+            border: 'none',
+            color: '#e5e7eb',
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 500,
+          }}
+        >
+          <span>Branding & Appearance</span>
+          <span style={{ color: '#6b7280', fontSize: 18 }}>
+            {brandingExpanded ? '▲' : '▼'}
+          </span>
+        </button>
+
+        {brandingExpanded && (
+          <div style={{ padding: '0 24px 24px', borderTop: '1px solid #1e293b' }}>
+            <p style={{ color: '#9ca3af', fontSize: 13, margin: '16px 0' }}>
+              Customize how the chat widget looks for your users. Changes are saved per-agent.
+            </p>
+
+            {/* Header Settings */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Header
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Title</label>
+                  <input
+                    type="text"
+                    value={branding.headerTitle || ''}
+                    onChange={(e) => updateBranding('headerTitle', e.target.value)}
+                    placeholder="AI Assistant"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Subtitle</label>
+                  <input
+                    type="text"
+                    value={branding.headerSubtitle || ''}
+                    onChange={(e) => updateBranding('headerSubtitle', e.target.value)}
+                    placeholder="Powered by AgenticLedger"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Avatar Settings */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Avatar
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Avatar Image URL</label>
+                  <input
+                    type="text"
+                    value={branding.avatarUrl || ''}
+                    onChange={(e) => updateBranding('avatarUrl', e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Avatar Label (fallback)</label>
+                  <input
+                    type="text"
+                    value={branding.avatarLabel || ''}
+                    onChange={(e) => updateBranding('avatarLabel', e.target.value)}
+                    placeholder="AI"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Welcome Message */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Welcome Message
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Title</label>
+                  <input
+                    type="text"
+                    value={branding.welcomeTitle || ''}
+                    onChange={(e) => updateBranding('welcomeTitle', e.target.value)}
+                    placeholder="Welcome!"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message</label>
+                  <textarea
+                    value={branding.welcomeMessage || ''}
+                    onChange={(e) => updateBranding('welcomeMessage', e.target.value)}
+                    placeholder="Ask a question or paste some context..."
+                    rows={2}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box', resize: 'vertical' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Input Placeholder</label>
+                  <input
+                    type="text"
+                    value={branding.placeholderText || ''}
+                    onChange={(e) => updateBranding('placeholderText', e.target.value)}
+                    placeholder="Ask a question…"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Colors */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Colors
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Primary</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={branding.primaryColor || '#2563eb'}
+                      onChange={(e) => updateBranding('primaryColor', e.target.value)}
+                      style={{ width: 32, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      value={branding.primaryColor || ''}
+                      onChange={(e) => updateBranding('primaryColor', e.target.value)}
+                      placeholder="#2563eb"
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Background</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={branding.backgroundColor || '#ffffff'}
+                      onChange={(e) => updateBranding('backgroundColor', e.target.value)}
+                      style={{ width: 32, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      value={branding.backgroundColor || ''}
+                      onChange={(e) => updateBranding('backgroundColor', e.target.value)}
+                      placeholder="#ffffff"
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Text</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={branding.textColor || '#111827'}
+                      onChange={(e) => updateBranding('textColor', e.target.value)}
+                      style={{ width: 32, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      value={branding.textColor || ''}
+                      onChange={(e) => updateBranding('textColor', e.target.value)}
+                      placeholder="#111827"
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>User Bubble</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={branding.userBubbleColor?.replace(/linear-gradient.*/, '') || '#2563eb'}
+                      onChange={(e) => updateBranding('userBubbleColor', e.target.value)}
+                      style={{ width: 32, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      value={branding.userBubbleColor || ''}
+                      onChange={(e) => updateBranding('userBubbleColor', e.target.value)}
+                      placeholder="#2563eb"
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 11, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Typography */}
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Typography & Shape
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Font Family</label>
+                  <select
+                    value={branding.fontFamily || ''}
+                    onChange={(e) => updateBranding('fontFamily', e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13 }}
+                  >
+                    <option value="">System Default</option>
+                    <option value='"Inter", system-ui, sans-serif'>Inter</option>
+                    <option value='"Roboto", system-ui, sans-serif'>Roboto</option>
+                    <option value='"Open Sans", system-ui, sans-serif'>Open Sans</option>
+                    <option value='"Poppins", system-ui, sans-serif'>Poppins</option>
+                    <option value='Georgia, serif'>Georgia (Serif)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Border Radius</label>
+                  <select
+                    value={branding.borderRadius || ''}
+                    onChange={(e) => updateBranding('borderRadius', e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', backgroundColor: '#0f172a', color: '#e5e7eb', fontSize: 13 }}
+                  >
+                    <option value="">Default (0.75rem)</option>
+                    <option value="0">Square (0)</option>
+                    <option value="0.25rem">Slightly Rounded</option>
+                    <option value="0.5rem">Rounded</option>
+                    <option value="1rem">More Rounded</option>
+                    <option value="1.5rem">Very Rounded</option>
+                    <option value="9999px">Pill Shape</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+              <div style={{ fontSize: 13, color: brandingMessage?.includes('saved') ? '#22c55e' : '#f87171' }}>
+                {brandingMessage || '\u00A0'}
+              </div>
+              <button
+                onClick={handleSaveBranding}
+                disabled={savingBranding}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 8,
+                  border: 'none',
+                  backgroundColor: savingBranding ? '#1f2937' : '#22c55e',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: savingBranding ? 'default' : 'pointer',
+                }}
+              >
+                {savingBranding ? 'Saving...' : 'Save Branding'}
+              </button>
             </div>
           </div>
         )}

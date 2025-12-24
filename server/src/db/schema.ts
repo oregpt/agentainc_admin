@@ -24,6 +24,7 @@ export const agents = pgTable('ai_agents', {
   defaultModel: varchar('default_model', { length: 128 }).notNull(),
   modelMode: varchar('model_mode', { length: 16 }).default('single'), // 'single' | 'multi'
   allowedModels: jsonb('allowed_models'), // Array of model IDs when modelMode is 'multi'
+  branding: jsonb('branding'), // Full branding/theme settings (AgentTheme object)
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

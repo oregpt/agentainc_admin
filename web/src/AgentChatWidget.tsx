@@ -201,13 +201,12 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
         overflow: 'hidden',
       }}
     >
-        {/* Header, inspired by Group Lead / SharedTeamChatInterface */}
+        {/* Header - fully themeable */}
         <div
           style={{
             padding: '10px 12px',
             borderBottom: '1px solid rgba(148, 163, 184, 0.4)',
-            background:
-              'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(129,140,248,0.12))',
+            background: `linear-gradient(135deg, var(--agent-header-gradient-from), var(--agent-header-gradient-to))`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -221,17 +220,25 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                 width: 28,
                 height: 28,
                 borderRadius: '999px',
-                background:
-                  'radial-gradient(circle at 30% 30%, #ffffff, rgba(59,130,246,0.9))',
+                background: mergedTheme.avatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: 'var(--agent-avatar-text)',
                 fontSize: 14,
                 fontWeight: 600,
+                overflow: 'hidden',
               }}
             >
-              AI
+              {mergedTheme.avatarUrl ? (
+                <img
+                  src={mergedTheme.avatarUrl}
+                  alt="Avatar"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                mergedTheme.avatarLabel
+              )}
               <span
                 style={{
                   position: 'absolute',
@@ -241,7 +248,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                   height: 8,
                   borderRadius: '999px',
                   border: '2px solid white',
-                  backgroundColor: '#22c55e',
+                  backgroundColor: 'var(--agent-status-active)',
                 }}
               />
             </div>
@@ -250,18 +257,18 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                 style={{
                   fontSize: 14,
                   fontWeight: 600,
-                  color: 'rgb(30,64,175)',
+                  color: 'var(--agent-header-title-color)',
                 }}
               >
-                Agent-in-a-Box Assistant
+                {mergedTheme.headerTitle}
               </div>
               <div
                 style={{
                   fontSize: 11,
-                  color: 'rgb(59,130,246)',
+                  color: 'var(--agent-header-subtitle-color)',
                 }}
               >
-                Streaming response mode · RAG + tools ready
+                {mergedTheme.headerSubtitle}
               </div>
             </div>
           </div>
@@ -283,7 +290,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                   padding: '2px 8px',
                   borderRadius: 999,
                   backgroundColor: 'rgba(59,130,246,0.12)',
-                  color: '#1d4ed8',
+                  color: 'var(--agent-status-working)',
                   fontWeight: 500,
                 }}
               >
@@ -292,7 +299,7 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                     width: 6,
                     height: 6,
                     borderRadius: '999px',
-                    backgroundColor: '#22c55e',
+                    backgroundColor: 'var(--agent-status-active)',
                     boxShadow: '0 0 0 3px rgba(34,197,94,0.35)',
                     animation: 'agentinabox-pulse 1.4s ease-in-out infinite',
                   }}
@@ -333,11 +340,8 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                 border: '1px dashed rgba(148,163,184,0.5)',
               }}
             >
-              <div style={{ fontWeight: 500, marginBottom: 4 }}>Welcome.</div>
-              <div>
-                Ask a question or paste some context. The assistant will stream a detailed, tool-aware
-                answer.
-              </div>
+              <div style={{ fontWeight: 500, marginBottom: 4 }}>{mergedTheme.welcomeTitle}</div>
+              <div>{mergedTheme.welcomeMessage}</div>
             </div>
           )}
 
@@ -357,16 +361,25 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                       width: 24,
                       height: 24,
                       borderRadius: '999px',
-                      backgroundColor: 'rgba(59,130,246,0.12)',
+                      background: mergedTheme.avatarUrl ? 'transparent' : 'var(--agent-avatar-bg)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: 11,
-                      color: '#1d4ed8',
+                      color: 'var(--agent-avatar-text)',
                       fontWeight: 600,
+                      overflow: 'hidden',
                     }}
                   >
-                    AI
+                    {mergedTheme.avatarUrl ? (
+                      <img
+                        src={mergedTheme.avatarUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      mergedTheme.avatarLabel
+                    )}
                   </div>
                 </div>
               )}
@@ -380,11 +393,14 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                   lineHeight: 1.5,
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
-                  backgroundColor:
+                  background:
                     m.role === 'user'
-                      ? 'linear-gradient(135deg, #2563eb, #4f46e5)'
-                      : 'rgba(255,255,255,0.95)',
-                  color: m.role === 'user' ? '#ffffff' : 'var(--agent-text)',
+                      ? 'var(--agent-user-bubble)'
+                      : 'var(--agent-assistant-bubble)',
+                  color:
+                    m.role === 'user'
+                      ? 'var(--agent-user-bubble-text)'
+                      : 'var(--agent-assistant-bubble-text)',
                   boxShadow:
                     m.role === 'assistant'
                       ? '0 8px 24px rgba(15,23,42,0.08)'
@@ -401,16 +417,16 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
                       width: 24,
                       height: 24,
                       borderRadius: '999px',
-                      backgroundColor: 'rgba(59,130,246,0.1)',
+                      backgroundColor: 'var(--agent-user-avatar-bg)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: 11,
-                      color: '#0f172a',
+                      color: 'var(--agent-user-avatar-text)',
                       fontWeight: 600,
                     }}
                   >
-                    You
+                    {mergedTheme.userAvatarLabel}
                   </div>
                 </div>
               )}
@@ -437,17 +453,17 @@ export const AgentChatWidget: React.FC<AgentChatWidgetProps> = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               rows={2}
-              placeholder={isStreaming ? 'Streaming response…' : 'Ask a question…'}
+              placeholder={isStreaming ? 'Streaming response…' : mergedTheme.placeholderText}
               style={{
                 resize: 'none',
                 width: '100%',
                 boxSizing: 'border-box',
                 borderRadius: 10,
-                border: '1px solid var(--agent-secondary)',
+                border: '1px solid var(--agent-input-border)',
                 padding: '6px 8px',
                 fontFamily: 'inherit',
                 fontSize: 13,
-                backgroundColor: '#f9fafb',
+                backgroundColor: 'var(--agent-input-bg)',
               }}
             />
             <button

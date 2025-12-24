@@ -100,13 +100,14 @@ adminRouter.get('/agents/:agentId', async (req, res) => {
 adminRouter.put('/agents/:agentId', async (req, res) => {
   try {
     const { agentId } = req.params;
-    const { name, description, instructions, defaultModel, modelMode, allowedModels } = req.body as {
+    const { name, description, instructions, defaultModel, modelMode, allowedModels, branding } = req.body as {
       name?: string;
       description?: string;
       instructions?: string;
       defaultModel?: string;
       modelMode?: 'single' | 'multi';
       allowedModels?: string[] | null;
+      branding?: Record<string, any> | null;
     };
 
     const patch: any = { updatedAt: new Date() };
@@ -116,6 +117,7 @@ adminRouter.put('/agents/:agentId', async (req, res) => {
     if (typeof defaultModel === 'string') patch.defaultModel = defaultModel;
     if (typeof modelMode === 'string') patch.modelMode = modelMode;
     if (allowedModels !== undefined) patch.allowedModels = allowedModels;
+    if (branding !== undefined) patch.branding = branding;
 
     const rows = (await db
       .update(agents)
@@ -132,6 +134,34 @@ adminRouter.put('/agents/:agentId', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update agent' });
+  }
+});
+
+// Update agent branding only
+adminRouter.put('/agents/:agentId/branding', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { branding } = req.body as { branding: Record<string, any> };
+
+    if (!branding || typeof branding !== 'object') {
+      return res.status(400).json({ error: 'branding object is required' });
+    }
+
+    const rows = (await db
+      .update(agents)
+      .set({ branding, updatedAt: new Date() })
+      .where(eq(agents.id, agentId))
+      .returning()) as any[];
+
+    const agent = rows[0];
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    res.json({ agent });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update branding' });
   }
 });
 

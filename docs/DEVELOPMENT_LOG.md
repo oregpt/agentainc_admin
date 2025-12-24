@@ -271,6 +271,50 @@ export async function getAgentApiKeyWithFallback(agentId: string, key: string): 
 
 ---
 
+### Full Branding & Theming System
+
+**Feature Added:** Complete widget customization per agent
+
+Each agent can now have fully customized branding:
+
+**Customizable Properties:**
+- **Header**: Title, subtitle, gradient colors
+- **Avatar**: Custom image URL or fallback label
+- **Welcome Message**: Title and message text
+- **Colors**: Primary, background, text, user bubble colors
+- **Typography**: Font family selection (Inter, Roboto, Open Sans, Poppins, Georgia)
+- **Shape**: Border radius (square to pill-shaped)
+- **Input**: Placeholder text customization
+
+**Database Changes:**
+- Added `branding` JSONB column to `ai_agents` table
+- Stores full theme object per agent
+
+**Backend Routes:**
+- `PUT /api/admin/agents/:agentId/branding` - Update branding for an agent
+- Agent GET/PUT routes now include branding in response/request
+
+**Frontend Changes:**
+- New "Branding & Appearance" collapsible section in Configuration page
+- Color pickers with hex input
+- Font family and border radius dropdowns
+- Live preview when chatting (branding merges with defaults)
+
+**Widget Updates:**
+- `AgentChatWidget` now uses CSS variables for all themeable properties
+- Header, avatars, message bubbles, input area all respect theme
+- Avatar can show custom image or text label
+
+**Files Modified:**
+- `web/src/theme.ts` - Expanded to 25+ theme properties
+- `server/src/db/schema.ts` - Added branding column
+- `server/src/db/init.ts` - ALTER TABLE for existing DBs
+- `server/src/http/adminRoutes.ts` - Branding route + agent update
+- `web/src/AgentChatWidget.tsx` - Full theme support
+- `web/src/pages/AgentConfig.tsx` - Branding section UI
+
+---
+
 ## Known Issues / TODO
 
 1. ~~**Capabilities tab shows "Failed to load"**~~ - Fixed: Added ALTER TABLE for `category` column
@@ -290,3 +334,4 @@ export async function getAgentApiKeyWithFallback(agentId: string, key: string): 
 | Dec 24, 2025 | Capabilities system | Additive - new tables and routes |
 | Dec 24, 2025 | Per-agent capabilities | Additive - agent selector on capabilities page |
 | Dec 24, 2025 | Per-Agent API Keys | Additive - encrypted storage per agent |
+| Dec 24, 2025 | Full Branding System | Additive - 25+ customizable theme properties |
