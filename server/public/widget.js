@@ -194,6 +194,70 @@
     .aiab-powered a:hover {
       text-decoration: underline;
     }
+
+    /* Markdown Styles */
+    .aiab-message h1, .aiab-message h2, .aiab-message h3 {
+      margin: 8px 0 4px 0;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .aiab-message h1 { font-size: 18px; }
+    .aiab-message h2 { font-size: 16px; }
+    .aiab-message h3 { font-size: 15px; }
+    .aiab-message p {
+      margin: 6px 0;
+    }
+    .aiab-message strong {
+      font-weight: 600;
+    }
+    .aiab-message em {
+      font-style: italic;
+    }
+    .aiab-message code {
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 13px;
+    }
+    .aiab-message pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    .aiab-message pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    .aiab-message ul, .aiab-message ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    .aiab-message li {
+      margin: 4px 0;
+    }
+    .aiab-message a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+    .aiab-message a:hover {
+      text-decoration: underline;
+    }
+    .aiab-message blockquote {
+      border-left: 3px solid #cbd5e1;
+      padding-left: 12px;
+      margin: 8px 0;
+      color: #64748b;
+    }
+    .aiab-message hr {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 12px 0;
+    }
   `;
 
   function injectStyles() {
@@ -252,6 +316,63 @@
     return div.innerHTML;
   }
 
+  // Simple markdown parser
+  function parseMarkdown(text) {
+    if (!text) return '';
+
+    let html = escapeHtml(text);
+
+    // Code blocks (```code```) - must be before inline code
+    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+
+    // Inline code (`code`)
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Headers (### h3, ## h2, # h1)
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // Bold (**text** or __text__)
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+    // Italic (*text* or _text_)
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+    // Links [text](url)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+    // Unordered lists (- item or * item)
+    html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+    // Ordered lists (1. item)
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+    // Blockquotes (> text)
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Horizontal rules (--- or ***)
+    html = html.replace(/^(---|\*\*\*)$/gm, '<hr>');
+
+    // Line breaks - convert double newlines to paragraphs
+    html = html.replace(/\n\n/g, '</p><p>');
+    html = html.replace(/\n/g, '<br>');
+
+    // Wrap in paragraph if not starting with block element
+    if (!html.match(/^<(h[1-6]|ul|ol|pre|blockquote|hr)/)) {
+      html = '<p>' + html + '</p>';
+    }
+
+    // Clean up empty paragraphs
+    html = html.replace(/<p><\/p>/g, '');
+    html = html.replace(/<p><br><\/p>/g, '');
+
+    return html;
+  }
+
   function togglePanel() {
     isOpen = !isOpen;
     document.getElementById('aiab-panel').classList.toggle('open', isOpen);
@@ -295,15 +416,27 @@
 
   function renderMessages() {
     const container = document.getElementById('aiab-messages');
-    container.innerHTML = messages.map(msg => `
-      <div class="aiab-message ${msg.role}" ${msg.role === 'user' ? `style="background: ${config.primaryColor}"` : ''}>
-        ${msg.isTyping ? `
-          <div class="aiab-typing-dots">
-            <span></span><span></span><span></span>
+    container.innerHTML = messages.map(msg => {
+      if (msg.isTyping) {
+        return `
+          <div class="aiab-message assistant typing">
+            <div class="aiab-typing-dots">
+              <span></span><span></span><span></span>
+            </div>
           </div>
-        ` : escapeHtml(msg.content)}
-      </div>
-    `).join('');
+        `;
+      }
+
+      const content = msg.role === 'user'
+        ? escapeHtml(msg.content)  // User messages: plain text
+        : parseMarkdown(msg.content);  // Assistant messages: render markdown
+
+      return `
+        <div class="aiab-message ${msg.role}" ${msg.role === 'user' ? `style="background: ${config.primaryColor}"` : ''}>
+          ${content}
+        </div>
+      `;
+    }).join('');
     container.scrollTop = container.scrollHeight;
   }
 
