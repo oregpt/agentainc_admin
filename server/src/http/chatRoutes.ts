@@ -1,5 +1,8 @@
 import { Router } from 'express';
+import { eq } from 'drizzle-orm';
 import { appendMessage, ensureDefaultAgent, generateReply, startConversation, getConversationWithMessages, streamReply } from '../chat/chatService';
+import { db } from '../db';
+import { agents } from '../db/schema';
 
 export const chatRouter = Router();
 
@@ -11,7 +14,18 @@ chatRouter.post('/start', async (req, res) => {
 
     const conv = await startConversation(agentId, externalUserId, title);
 
-    res.json({ conversationId: conv.id });
+    // Fetch agent details for the widget header
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+
+    res.json({
+      conversationId: conv.id,
+      agent: agent ? {
+        id: agent.id,
+        name: agent.name,
+        branding: agent.branding
+      } : null
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to start conversation' });
@@ -60,24 +74,24 @@ chatRouter.post('/:conversationId/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
 
     // Initial event to confirm stream open
-    res.write(`data: ${JSON.stringify({ event: 'start' })}\n\n`);
+    res.write(\`data: \${JSON.stringify({ event: 'start' })}\n\n\`);
 
     await appendMessage(id, 'user', message);
 
     const { full, sources } = await streamReply(id, message, (delta, _isFinal) => {
       const payload = { event: 'delta', delta };
-      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      res.write(\`data: \${JSON.stringify(payload)}\n\n\`);
     });
 
     const endPayload = { event: 'end', full, sources };
-    res.write(`data: ${JSON.stringify(endPayload)}\n\n`);
+    res.write(\`data: \${JSON.stringify(endPayload)}\n\n\`);
     res.end();
   } catch (err) {
     console.error(err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to stream message' });
     } else {
-      res.write(`data: ${JSON.stringify({ event: 'error', error: 'Failed to stream message' })}\n\n`);
+      res.write(\`data: \${JSON.stringify({ event: 'error', error: 'Failed to stream message' })}\n\n\`);
       res.end();
     }
   }

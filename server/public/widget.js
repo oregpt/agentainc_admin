@@ -88,6 +88,18 @@
     .aiab-header-title {
       font-weight: 600;
       font-size: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .aiab-agent-name {
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .aiab-powered-subtitle {
+      font-weight: 400;
+      font-size: 11px;
+      opacity: 0.85;
     }
     .aiab-close {
       background: none;
@@ -273,7 +285,10 @@
     container.innerHTML = `
       <div class="aiab-panel" id="aiab-panel">
         <div class="aiab-header" style="background: ${config.primaryColor}">
-          <span class="aiab-header-title">${escapeHtml(config.title)}</span>
+          <div class="aiab-header-title">
+            <span class="aiab-agent-name">${escapeHtml(config.title)}</span>
+            <span class="aiab-powered-subtitle">Powered by AgenticLedger</span>
+          </div>
           <button class="aiab-close" id="aiab-close">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -373,7 +388,26 @@
     return html;
   }
 
-  function togglePanel() {
+  
+  function updateHeader(agentName, branding) {
+    const headerEl = container.querySelector('.aiab-header');
+    const nameEl = container.querySelector('.aiab-agent-name');
+
+    if (nameEl && agentName) {
+      nameEl.textContent = agentName;
+    }
+
+    // Apply custom branding color if available
+    if (branding && branding.primaryColor) {
+      const color = branding.primaryColor;
+      headerEl.style.background = color;
+      container.querySelector('.aiab-trigger').style.background = color;
+      container.querySelector('.aiab-send').style.background = color;
+      config.primaryColor = color; // Update for future user messages
+    }
+  }
+
+function togglePanel() {
     isOpen = !isOpen;
     document.getElementById('aiab-panel').classList.toggle('open', isOpen);
     if (isOpen && !conversationId) {
@@ -398,6 +432,11 @@
 
       const data = await response.json();
       conversationId = data.conversationId;
+
+      // Update header with agent info from API
+      if (data.agent) {
+        updateHeader(data.agent.name, data.agent.branding);
+      }
 
       // Show welcome message
       if (config.welcomeMessage) {
