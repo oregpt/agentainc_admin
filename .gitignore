@@ -15,6 +15,9 @@ coverage/
 .env.*.local
 !.env.example
 
+# License key generation guide (contains secrets)
+LICENSE_KEY_GENERATION.md
+
 # IDE/editor
 .vscode/
 .idea/
