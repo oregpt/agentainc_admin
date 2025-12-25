@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { eq } from 'drizzle-orm';
 import { appendMessage, ensureDefaultAgent, generateReply, startConversation, getConversationWithMessages, streamReply } from '../chat/chatService';
-import { db } from '../db';
+import { db } from '../db/client';
 import { agents } from '../db/schema';
 
 export const chatRouter = Router();
@@ -74,24 +74,24 @@ chatRouter.post('/:conversationId/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
 
     // Initial event to confirm stream open
-    res.write(\`data: \${JSON.stringify({ event: 'start' })}\n\n\`);
+    res.write(`data: ${JSON.stringify({ event: 'start' })}\n\n`);
 
     await appendMessage(id, 'user', message);
 
     const { full, sources } = await streamReply(id, message, (delta, _isFinal) => {
       const payload = { event: 'delta', delta };
-      res.write(\`data: \${JSON.stringify(payload)}\n\n\`);
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
     });
 
     const endPayload = { event: 'end', full, sources };
-    res.write(\`data: \${JSON.stringify(endPayload)}\n\n\`);
+    res.write(`data: ${JSON.stringify(endPayload)}\n\n`);
     res.end();
   } catch (err) {
     console.error(err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to stream message' });
     } else {
-      res.write(\`data: \${JSON.stringify({ event: 'error', error: 'Failed to stream message' })}\n\n\`);
+      res.write(`data: ${JSON.stringify({ event: 'error', error: 'Failed to stream message' })}\n\n`);
       res.end();
     }
   }
