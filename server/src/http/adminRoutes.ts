@@ -9,6 +9,7 @@ import { AVAILABLE_MODELS } from '../llm';
 import { capabilityService } from '../capabilities';
 import { getOrchestrator } from '../mcp-hub';
 import { eq, and, isNull, sql, inArray } from 'drizzle-orm';
+import { getFeatures, canCreateAgent, getLicensingStatus } from '../licensing';
 
 export const adminRouter = Router();
 
@@ -53,6 +54,21 @@ adminRouter.get('/models', async (_req, res) => {
 });
 
 // ============================================================================
+// Licensing Status
+// ============================================================================
+
+// Get current licensing status and features
+adminRouter.get('/licensing', async (_req, res) => {
+  try {
+    const status = getLicensingStatus();
+    res.json(status);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to get licensing status' });
+  }
+});
+
+// ============================================================================
 // Multi-Agent Routes
 // ============================================================================
 
@@ -83,6 +99,20 @@ adminRouter.post('/agents', async (req, res) => {
 
     if (!name) {
       return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Check licensing: can we create more agents?
+    const existingAgents = await db.select().from(agents);
+    const agentCount = existingAgents.length;
+
+    if (!canCreateAgent(agentCount)) {
+      const features = getFeatures();
+      return res.status(403).json({
+        error: features.multiAgent
+          ? `Agent limit reached (max: ${features.maxAgents})`
+          : 'Multi-agent feature not licensed. Upgrade to create additional agents.',
+        code: 'AGENT_LIMIT_REACHED',
+      });
     }
 
     // Generate slug from name
@@ -180,6 +210,15 @@ adminRouter.put('/agents/:agentId/branding', async (req, res) => {
   try {
     const { agentId } = req.params;
     const { branding } = req.body as { branding: Record<string, any> };
+
+    // Check licensing: is custom branding allowed?
+    const features = getFeatures();
+    if (!features.customBranding) {
+      return res.status(403).json({
+        error: 'Custom branding not licensed. Upgrade to customize your agent appearance.',
+        code: 'BRANDING_NOT_LICENSED',
+      });
+    }
 
     if (!branding || typeof branding !== 'object') {
       return res.status(400).json({ error: 'branding object is required' });

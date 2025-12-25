@@ -1,11 +1,23 @@
 import { Router } from 'express';
 import { getCapability, listCapabilities } from '../capabilities/registry';
 import { capabilityService } from '../capabilities/capabilityService';
+import { getFeatures, isCapabilityAllowed } from '../licensing';
 
 export const capabilityRouter = Router();
 
 capabilityRouter.get('/', async (_req, res) => {
-  res.json({ capabilities: listCapabilities() });
+  const features = getFeatures();
+
+  // If MCP Hub not licensed, return empty
+  if (!features.mcpHub) {
+    return res.json({ capabilities: [] });
+  }
+
+  // Filter to only allowed capabilities
+  const allCapabilities = listCapabilities();
+  const allowedCapabilities = allCapabilities.filter(cap => isCapabilityAllowed(cap.id));
+
+  res.json({ capabilities: allowedCapabilities });
 });
 
 // Get enabled capabilities for a specific agent (for widget use)
@@ -16,12 +28,19 @@ capabilityRouter.get('/agent/:agentId', async (req, res) => {
       return res.status(400).json({ error: 'agentId is required' });
     }
 
+    const features = getFeatures();
+
+    // If MCP Hub not licensed, return empty
+    if (!features.mcpHub) {
+      return res.json({ capabilities: [] });
+    }
+
     // Get all capabilities with agent-specific enabled status
     const allCapabilities = await capabilityService.getAgentCapabilities(agentId);
 
-    // Filter to only enabled capabilities
+    // Filter to only enabled + licensed capabilities
     const enabledCapabilities = allCapabilities
-      .filter(cap => cap.enabled && cap.agentEnabled)
+      .filter(cap => cap.enabled && cap.agentEnabled && isCapabilityAllowed(cap.id))
       .map(cap => ({
         id: cap.id,
         name: cap.name,
@@ -38,6 +57,24 @@ capabilityRouter.get('/agent/:agentId', async (req, res) => {
 
 capabilityRouter.post('/anyapi/execute', async (req, res) => {
   try {
+    const features = getFeatures();
+
+    // Check MCP Hub license
+    if (!features.mcpHub) {
+      return res.status(403).json({
+        error: 'MCP Hub not licensed. Upgrade to use capabilities.',
+        code: 'MCP_HUB_NOT_LICENSED',
+      });
+    }
+
+    // Check if anyapi capability is allowed
+    if (!isCapabilityAllowed('anyapi')) {
+      return res.status(403).json({
+        error: 'AnyAPI capability not licensed.',
+        code: 'CAPABILITY_NOT_LICENSED',
+      });
+    }
+
     const { action, params, agentId, conversationId, externalUserId } = req.body as {
       action: string;
       params?: Record<string, unknown>;

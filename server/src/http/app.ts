@@ -7,6 +7,7 @@ import { capabilityRouter } from './capabilityRoutes';
 import { kbRouter } from './kbRoutes';
 import { ragRouter } from './ragRoutes';
 import { adminRouter } from './adminRoutes';
+import { getFeatures } from '../licensing';
 
 // Ensure uploads directory exists
 const uploadsPath = path.join(__dirname, '../../uploads');
@@ -27,6 +28,17 @@ export function createHttpApp() {
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'agentinabox-server' });
+  });
+
+  // Public endpoint: Widget features (what the embeddable widget can do)
+  // This is NOT the admin licensing endpoint - it exposes only what the widget needs
+  app.get('/api/widget/features', (_req, res) => {
+    const features = getFeatures();
+    res.json({
+      multimodal: features.multimodal,
+      customBranding: features.customBranding,
+      mcpHub: features.mcpHub,
+    });
   });
 
   app.use('/api/chat', chatRouter);

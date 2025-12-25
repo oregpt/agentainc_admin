@@ -4,12 +4,20 @@ import { getOrchestrator } from './mcp-hub';
 import { anyapiServer } from './mcp-hub/servers/anyapi';
 import { capabilityService } from './capabilities';
 import { initializeDatabase } from './db/init';
+import { initializeLicensing, getFeatures } from './licensing';
 
 const config = loadConfig();
 const app = createHttpApp();
 
-// Initialize MCP Hub and capabilities
+// Initialize MCP Hub and capabilities (only if licensed)
 async function initializeMCPHub() {
+  const features = getFeatures();
+
+  if (!features.mcpHub) {
+    console.log('[server] MCP Hub disabled (not licensed)');
+    return;
+  }
+
   try {
     const orchestrator = getOrchestrator();
 
@@ -23,6 +31,13 @@ async function initializeMCPHub() {
 }
 
 async function initializeCapabilities() {
+  const features = getFeatures();
+
+  if (!features.mcpHub) {
+    console.log('[server] Capabilities seeding skipped (MCP Hub not licensed)');
+    return;
+  }
+
   try {
     // Seed default capabilities
     await capabilityService.seedDefaultCapabilities();
@@ -36,10 +51,13 @@ async function initializeCapabilities() {
 app.listen(config.port, async () => {
   console.log(`Agent-in-a-Box server listening on port ${config.port}`);
 
+  // Initialize licensing FIRST (before anything else)
+  initializeLicensing();
+
   // Initialize database (pgvector extension, migrations)
   await initializeDatabase();
 
-  // Initialize MCP Hub and capabilities after server starts
+  // Initialize MCP Hub and capabilities after server starts (if licensed)
   await initializeMCPHub();
   await initializeCapabilities();
 });
