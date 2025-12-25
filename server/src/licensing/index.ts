@@ -3,8 +3,12 @@
  *
  * Initializes feature flags on startup from:
  * 1. License key (AGENTICLEDGER_LICENSE_KEY) - highest priority
- * 2. Environment variables (FEATURE_*) - for dev/testing
+ * 2. Environment variables (FEATURE_*) - ONLY in development mode
  * 3. Base features (fallback)
+ *
+ * IMPORTANT: In production (NODE_ENV=production), env var overrides are DISABLED.
+ * This prevents customers from bypassing licensing by setting FEATURE_* vars.
+ * They must have a valid license key to unlock features.
  */
 
 import { FeatureFlags, BASE_FEATURES, setFeatures, getFeatures, isCapabilityAllowed, canCreateAgent } from './features';
@@ -96,23 +100,29 @@ export function initializeLicensing(): void {
     }
   }
 
-  // Priority 2: Check for env var overrides
-  const envFeatures = loadFeaturesFromEnv();
-  const hasEnvOverrides = Object.keys(envFeatures).length > 0;
+  // Priority 2: Check for env var overrides (ONLY in development mode)
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  if (hasEnvOverrides) {
-    console.log('[licensing] Using environment variable overrides');
-    // Merge with base features
-    const mergedFeatures: FeatureFlags = {
-      ...BASE_FEATURES,
-      ...envFeatures,
-    };
-    setFeatures(mergedFeatures);
-    return;
+  if (!isProduction) {
+    const envFeatures = loadFeaturesFromEnv();
+    const hasEnvOverrides = Object.keys(envFeatures).length > 0;
+
+    if (hasEnvOverrides) {
+      console.log('[licensing] Using environment variable overrides (dev mode)');
+      // Merge with base features
+      const mergedFeatures: FeatureFlags = {
+        ...BASE_FEATURES,
+        ...envFeatures,
+      };
+      setFeatures(mergedFeatures);
+      return;
+    }
+  } else {
+    console.log('[licensing] Production mode - env var overrides disabled');
   }
 
   // Priority 3: Use base features
-  console.log('[licensing] No license key or env vars found, using base features');
+  console.log('[licensing] Using base features (license key required for more)');
   setFeatures(BASE_FEATURES);
 }
 
@@ -146,12 +156,16 @@ export function getLicensingStatus(): {
     }
   }
 
-  const envFeatures = loadFeaturesFromEnv();
-  if (Object.keys(envFeatures).length > 0) {
-    return {
-      mode: 'env',
-      features,
-    };
+  // Only report env mode if not in production
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!isProduction) {
+    const envFeatures = loadFeaturesFromEnv();
+    if (Object.keys(envFeatures).length > 0) {
+      return {
+        mode: 'env',
+        features,
+      };
+    }
   }
 
   return {
