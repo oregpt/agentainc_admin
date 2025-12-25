@@ -58,6 +58,8 @@ COPY --from=server-builder /app/server/dist ./dist
 # Copy built web frontend (server will serve these)
 COPY --from=web-builder /app/web/dist ./public
 
+# Copy server public files (widget.js, etc.) - these override/extend the web build
+COPY server/public/ ./public/
 # Create uploads directory
 RUN mkdir -p uploads/kb
 
