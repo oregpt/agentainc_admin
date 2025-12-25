@@ -101,14 +101,17 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const url = new URL(apiUrl('/documents'));
+      // Build query string manually to avoid new URL() issues with relative paths
+      const params = new URLSearchParams();
       if (selectedFolderId !== null) {
-        url.searchParams.set('folderId', String(selectedFolderId));
+        params.set('folderId', String(selectedFolderId));
       }
       if (categoryFilter !== 'all') {
-        url.searchParams.set('category', categoryFilter);
+        params.set('category', categoryFilter);
       }
-      const res = await fetch(url.toString());
+      const queryString = params.toString();
+      const url = apiUrl('/documents') + (queryString ? `?${queryString}` : '');
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to load documents');
       const data = await res.json();
       setDocuments(data.documents || []);
