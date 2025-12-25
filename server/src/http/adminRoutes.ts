@@ -785,30 +785,32 @@ adminRouter.delete('/agents/:agentId/folders/:folderId', async (req, res) => {
     }
 
     // Check if folder has any documents
-    const docCount = await db
+    const docCountResult = await db
       .select({ count: sql<number>`CAST(COUNT(*) AS INTEGER)` })
       .from(documents)
       .where(eq(documents.folderId, folderIdNum));
 
-    if (docCount[0]?.count > 0) {
+    const docCount = docCountResult[0]?.count ?? 0;
+    if (docCount > 0) {
       return res.status(400).json({
         error: 'Cannot delete folder with documents',
-        message: `This folder contains ${docCount[0].count} document(s). Please delete or move the documents first.`,
-        documentCount: docCount[0].count
+        message: `This folder contains ${docCount} document(s). Please delete or move the documents first.`,
+        documentCount: docCount
       });
     }
 
     // Check if folder has subfolders
-    const subfolderCount = await db
+    const subfolderCountResult = await db
       .select({ count: sql<number>`CAST(COUNT(*) AS INTEGER)` })
       .from(folders)
       .where(eq(folders.parentId, folderIdNum));
 
-    if (subfolderCount[0]?.count > 0) {
+    const subfolderCount = subfolderCountResult[0]?.count ?? 0;
+    if (subfolderCount > 0) {
       return res.status(400).json({
         error: 'Cannot delete folder with subfolders',
-        message: `This folder contains ${subfolderCount[0].count} subfolder(s). Please delete the subfolders first.`,
-        subfolderCount: subfolderCount[0].count
+        message: `This folder contains ${subfolderCount} subfolder(s). Please delete the subfolders first.`,
+        subfolderCount: subfolderCount
       });
     }
 
