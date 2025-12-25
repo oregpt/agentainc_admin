@@ -44,14 +44,10 @@ const FolderNode: React.FC<FolderNodeProps> = ({
   colors,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const isExpanded = expandedIds.has(folder.id);
   const isSelected = selectedFolderId === folder.id;
   const hasChildren = folder.children && folder.children.length > 0;
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setShowMenu(true);
-  };
 
   const handleClick = () => {
     onSelectFolder(folder.id);
@@ -62,17 +58,31 @@ const FolderNode: React.FC<FolderNodeProps> = ({
     onToggleExpand(folder.id);
   };
 
+  const handleMenuToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(!showMenu);
+  };
+
+  // Close menu when clicking outside
+  React.useEffect(() => {
+    if (showMenu) {
+      const handleClickOutside = () => setShowMenu(false);
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showMenu]);
+
   return (
     <div>
       <div
         onClick={handleClick}
-        onContextMenu={handleContextMenu}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 6,
           padding: '6px 8px',
           paddingLeft: 8 + level * 16,
+          paddingRight: 32,
           cursor: 'pointer',
           borderRadius: 6,
           backgroundColor: isSelected ? colors.bgSecondary : 'transparent',
@@ -82,11 +92,12 @@ const FolderNode: React.FC<FolderNodeProps> = ({
           position: 'relative',
         }}
         onMouseEnter={(e) => {
+          setIsHovered(true);
           if (!isSelected) e.currentTarget.style.backgroundColor = colors.bgHover;
         }}
         onMouseLeave={(e) => {
+          setIsHovered(false);
           if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-          setShowMenu(false);
         }}
       >
         {/* Expand/Collapse Arrow */}
@@ -127,19 +138,51 @@ const FolderNode: React.FC<FolderNodeProps> = ({
         </svg>
 
         {/* Folder Name */}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{folder.name}</span>
 
-        {/* Context Menu */}
-        {showMenu && (
-          <div
+        {/* More Actions Button (three dots) */}
+        {(isHovered || isSelected || showMenu) && (
+          <button
+            onClick={handleMenuToggle}
             style={{
               position: 'absolute',
-              right: 8,
+              right: 6,
               top: '50%',
               transform: 'translateY(-50%)',
+              padding: '2px 4px',
+              borderRadius: 4,
+              border: 'none',
+              background: showMenu ? colors.bgSecondary : 'transparent',
+              color: colors.textSecondary,
+              fontSize: 14,
+              cursor: 'pointer',
               display: 'flex',
-              gap: 4,
-              zIndex: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: 1,
+            }}
+            title="Folder actions"
+          >
+            ⋯
+          </button>
+        )}
+
+        {/* Dropdown Menu */}
+        {showMenu && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: '100%',
+              marginTop: 2,
+              backgroundColor: colors.bgCard,
+              border: `1px solid ${colors.border}`,
+              borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 100,
+              minWidth: 140,
+              overflow: 'hidden',
             }}
           >
             <button
@@ -149,17 +192,26 @@ const FolderNode: React.FC<FolderNodeProps> = ({
                 setShowMenu(false);
               }}
               style={{
-                padding: '2px 6px',
-                borderRadius: 4,
-                border: `1px solid ${colors.border}`,
-                background: colors.bgCard,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '8px 12px',
+                border: 'none',
+                background: 'transparent',
                 color: colors.text,
-                fontSize: 10,
+                fontSize: 12,
                 cursor: 'pointer',
+                textAlign: 'left',
               }}
-              title="New subfolder"
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.bgHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
-              +
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              New Subfolder
             </button>
             <button
               onClick={(e) => {
@@ -168,18 +220,28 @@ const FolderNode: React.FC<FolderNodeProps> = ({
                 setShowMenu(false);
               }}
               style={{
-                padding: '2px 6px',
-                borderRadius: 4,
-                border: `1px solid ${colors.border}`,
-                background: colors.bgCard,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '8px 12px',
+                border: 'none',
+                background: 'transparent',
                 color: colors.text,
-                fontSize: 10,
+                fontSize: 12,
                 cursor: 'pointer',
+                textAlign: 'left',
               }}
-              title="Rename"
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.bgHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
-              Edit
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Rename
             </button>
+            <div style={{ height: 1, backgroundColor: colors.border, margin: '4px 0' }} />
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -187,17 +249,26 @@ const FolderNode: React.FC<FolderNodeProps> = ({
                 setShowMenu(false);
               }}
               style={{
-                padding: '2px 6px',
-                borderRadius: 4,
-                border: `1px solid ${colors.border}`,
-                background: colors.bgCard,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '8px 12px',
+                border: 'none',
+                background: 'transparent',
                 color: colors.error,
-                fontSize: 10,
+                fontSize: 12,
                 cursor: 'pointer',
+                textAlign: 'left',
               }}
-              title="Delete"
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.bgHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
-              Del
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Delete
             </button>
           </div>
         )}

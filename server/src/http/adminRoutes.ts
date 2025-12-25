@@ -767,7 +767,7 @@ adminRouter.put('/agents/:agentId/folders/:folderId/move', async (req, res) => {
   }
 });
 
-// Delete a folder (documents move to parent/root)
+// Delete a folder (only if empty - no documents)
 adminRouter.delete('/agents/:agentId/folders/:folderId', async (req, res) => {
   try {
     const { agentId, folderId } = req.params;
@@ -784,21 +784,35 @@ adminRouter.delete('/agents/:agentId/folders/:folderId', async (req, res) => {
       return res.status(404).json({ error: 'Folder not found' });
     }
 
-    const parentId = folderRows[0].parentId;
-
-    // Move documents in this folder to the parent folder (or null for root)
-    await db
-      .update(documents)
-      .set({ folderId: parentId })
+    // Check if folder has any documents
+    const docCount = await db
+      .select({ count: sql<number>`CAST(COUNT(*) AS INTEGER)` })
+      .from(documents)
       .where(eq(documents.folderId, folderIdNum));
 
-    // Move subfolders to the parent folder
-    await db
-      .update(folders)
-      .set({ parentId })
+    if (docCount[0]?.count > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete folder with documents',
+        message: `This folder contains ${docCount[0].count} document(s). Please delete or move the documents first.`,
+        documentCount: docCount[0].count
+      });
+    }
+
+    // Check if folder has subfolders
+    const subfolderCount = await db
+      .select({ count: sql<number>`CAST(COUNT(*) AS INTEGER)` })
+      .from(folders)
       .where(eq(folders.parentId, folderIdNum));
 
-    // Delete the folder
+    if (subfolderCount[0]?.count > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete folder with subfolders',
+        message: `This folder contains ${subfolderCount[0].count} subfolder(s). Please delete the subfolders first.`,
+        subfolderCount: subfolderCount[0].count
+      });
+    }
+
+    // Delete the folder (it's empty)
     await db.delete(folders).where(eq(folders.id, folderIdNum));
 
     res.json({ success: true, folderId: folderIdNum });

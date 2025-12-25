@@ -41,11 +41,12 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
 
   // Upload state
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadCategory, setUploadCategory] = useState<DocumentCategory>('knowledge');
   const [uploadFolderId, setUploadFolderId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modals
   const [showTagManager, setShowTagManager] = useState(false);
@@ -162,10 +163,14 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
   };
 
   const handleDeleteFolder = async (folder: Folder) => {
-    if (!confirm(`Delete folder "${folder.name}"? Documents will be moved to parent folder.`)) return;
+    if (!confirm(`Delete folder "${folder.name}"?`)) return;
     try {
       const res = await fetch(apiUrl(`/folders/${folder.id}`), { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete folder');
+      if (!res.ok) {
+        const data = await res.json();
+        // Show the specific error message from the API
+        throw new Error(data.message || data.error || 'Failed to delete folder');
+      }
       await loadFolders();
       await loadDocuments();
       await loadStorage();
@@ -342,37 +347,86 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     }
   };
 
-  // Upload
+  // Upload - batch upload multiple files
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadFile) return;
+    if (uploadFiles.length === 0) return;
     setUploading(true);
     setError(null);
     try {
       const formData = new FormData();
-      formData.append('file', uploadFile);
-      if (uploadTitle) formData.append('title', uploadTitle);
+      uploadFiles.forEach((file) => {
+        formData.append('files', file);
+      });
       if (agentId) formData.append('agentId', agentId);
       formData.append('category', uploadCategory);
       if (uploadFolderId !== null) formData.append('folderId', String(uploadFolderId));
 
-      const res = await fetch(`${apiBaseUrl}/api/kb/files`, {
+      const res = await fetch(`${apiBaseUrl}/api/kb/files/batch`, {
         method: 'POST',
         body: formData,
       });
-      if (!res.ok) throw new Error('Failed to upload file');
+      if (!res.ok) throw new Error('Failed to upload files');
+      const result = await res.json();
+
       setShowUploadModal(false);
-      setUploadFile(null);
-      setUploadTitle('');
+      setUploadFiles([]);
       setUploadCategory('knowledge');
       setUploadFolderId(null);
       await loadDocuments();
       await loadStorage();
+
+      // Show error if some files failed
+      if (result.failed > 0) {
+        setError(`Uploaded ${result.succeeded} files. ${result.failed} failed: ${result.errors.map((e: any) => e.filename).join(', ')}`);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
       setUploading(false);
     }
+  };
+
+  // Handle file selection from input
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setUploadFiles((prev) => [...prev, ...files].slice(0, 20)); // Max 20 files
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle drag and drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      setUploadFiles((prev) => [...prev, ...files].slice(0, 20)); // Max 20 files
+    }
+  };
+
+  // Remove a file from the upload list
+  const removeUploadFile = (index: number) => {
+    setUploadFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Clear all files
+  const clearUploadFiles = () => {
+    setUploadFiles([]);
   };
 
   const formatSize = (bytes: number) => {
@@ -744,49 +798,201 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
               backgroundColor: colors.bgCard,
               borderRadius: 12,
               padding: 24,
-              width: 400,
+              width: 480,
+              maxHeight: '80vh',
+              overflow: 'auto',
               boxShadow: colors.shadowLg,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, color: colors.text }}>Upload Document</h3>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: colors.textSecondary }}>
-                File
-              </label>
-              <input
-                type="file"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                style={{ fontSize: 13, color: colors.text }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: colors.textSecondary }}>
-                Title (optional)
-              </label>
-              <input
-                type="text"
-                value={uploadTitle}
-                onChange={(e) => setUploadTitle(e.target.value)}
-                placeholder="Display title"
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, color: colors.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={colors.primary} strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Upload Files
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowUploadModal(false)}
                 style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  border: `1px solid ${colors.border}`,
-                  backgroundColor: colors.bgInput,
-                  color: colors.text,
-                  fontSize: 13,
-                  boxSizing: 'border-box',
+                  background: 'none',
+                  border: 'none',
+                  color: colors.textSecondary,
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  padding: 4,
                 }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* File Type Info */}
+            <div style={{ marginBottom: 16 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  backgroundColor: colors.bgSecondary,
+                  borderRadius: 6,
+                  marginBottom: 4,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500, color: colors.text }}>Knowledge</span>
+                <span style={{ fontSize: 11, color: colors.textSecondary }}>(.pdf, .doc, .docx, .txt, .md)</span>
+              </div>
+              <span style={{ fontSize: 11, color: colors.textSecondary }}>
+                Documents for AI knowledge base (PDFs, docs, text)
+              </span>
+            </div>
+
+            {/* Drag & Drop Zone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${isDragging ? colors.primary : colors.border}`,
+                borderRadius: 8,
+                padding: '32px 16px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                backgroundColor: isDragging ? `${colors.primary}08` : 'transparent',
+                transition: 'all 0.2s ease',
+                marginBottom: 16,
+              }}
+            >
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={isDragging ? colors.primary : colors.textSecondary}
+                strokeWidth="1.5"
+                style={{ marginBottom: 8 }}
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <div style={{ fontSize: 13, color: colors.text, marginBottom: 4 }}>
+                Drag & drop files here, or click to select
+              </div>
+              <div style={{ fontSize: 11, color: colors.textSecondary }}>
+                Accepted: pdf, .doc, .docx, .txt, .md (max 20 files)
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.md"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
               />
             </div>
 
+            {/* Selected Files List */}
+            {uploadFiles.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 500, color: colors.text }}>
+                    Selected Files ({uploadFiles.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearUploadFiles}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div
+                  style={{
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: 6,
+                  }}
+                >
+                  {uploadFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderBottom: index < uploadFiles.length - 1 ? `1px solid ${colors.border}` : 'none',
+                        backgroundColor: colors.bgCard,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={colors.textSecondary} strokeWidth="2">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color: colors.text,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {file.name}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, color: colors.textSecondary }}>
+                          {formatSize(file.size)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeUploadFile(index)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: colors.textSecondary,
+                            cursor: 'pointer',
+                            padding: 2,
+                            fontSize: 16,
+                            lineHeight: 1,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Category */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: colors.textSecondary }}>
-                Category
+                Category (applied to all files)
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['knowledge', 'code', 'data'] as DocumentCategory[]).map((cat) => (
@@ -808,9 +1014,10 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
               </div>
             </div>
 
-            <div style={{ marginBottom: 16 }}>
+            {/* Folder */}
+            <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: colors.textSecondary }}>
-                Folder
+                Folder (applied to all files)
               </label>
               <select
                 value={uploadFolderId ?? ''}
@@ -835,12 +1042,13 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
               </select>
             </div>
 
+            {/* Action Buttons */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
                 type="button"
                 onClick={() => setShowUploadModal(false)}
                 style={{
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   borderRadius: 6,
                   border: `1px solid ${colors.border}`,
                   background: colors.bgSecondary,
@@ -853,20 +1061,28 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={uploading || !uploadFile}
+                disabled={uploading || uploadFiles.length === 0}
                 style={{
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   borderRadius: 6,
                   border: 'none',
                   background: colors.primary,
                   color: '#fff',
                   fontSize: 13,
                   fontWeight: 500,
-                  cursor: uploading || !uploadFile ? 'not-allowed' : 'pointer',
-                  opacity: uploading || !uploadFile ? 0.5 : 1,
+                  cursor: uploading || uploadFiles.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: uploading || uploadFiles.length === 0 ? 0.5 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                {uploading ? 'Uploading...' : 'Upload'}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                {uploading ? 'Uploading...' : `Upload ${uploadFiles.length} File${uploadFiles.length !== 1 ? 's' : ''}`}
               </button>
             </div>
           </form>
