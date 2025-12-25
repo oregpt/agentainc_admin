@@ -53,7 +53,8 @@ export function createHttpApp() {
     app.use(express.static(publicPath));
 
     // SPA fallback - serve index.html for all non-API routes
-    app.get('*', (_req, res) => {
+    // Note: Express 5 / path-to-regexp 8+ requires '{*path}' syntax instead of '*'
+    app.get('/{*path}', (_req, res) => {
       res.sendFile(path.join(publicPath, 'index.html'));
     });
   }
