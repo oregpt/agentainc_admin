@@ -15,8 +15,12 @@ coverage/
 .env.*.local
 !.env.example
 
-# License key generation guide (contains secrets)
+# Internal files (not for customer distribution)
+CLAUDE.md
+ASSESSMENT.md
 LICENSE_KEY_GENERATION.md
+docs/DEVELOPMENT_LOG.md
+docs/ORDER_FORM_TEMPLATE.md
 
 # IDE/editor
 .vscode/
