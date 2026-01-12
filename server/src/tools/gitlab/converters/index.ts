@@ -18,6 +18,8 @@ export {
   getProductContext,
   getOutputFilename,
   getOutputFolder,
+  slugify,
+  extractTitle,
   type UrlDerivationConfig,
   type DerivedUrlInfo,
 } from './urlDerivation';
@@ -64,8 +66,9 @@ export function processFile(
   let sourceUrl: string | undefined;
 
   // Derive source URL if config provided
+  // Pass content so URL slug is derived from the document's H1 header
   if (urlConfig) {
-    const urlInfo = deriveDocumentationUrl(filePath, urlConfig);
+    const urlInfo = deriveDocumentationUrl(filePath, urlConfig, content);
     sourceUrl = urlInfo.fullUrl;
   }
 

@@ -1,11 +1,14 @@
 /**
  * URL Derivation Logic
  *
- * Derives documentation URLs from GitLab file paths.
+ * Derives documentation URLs from GitLab file paths and document content.
  * Works for Antora-style documentation structures.
  *
- * GitLab path: canton/modules/ROOT/pages/validator-mgmt/create-validator.adoc
- * Live URL:    https://docs.example.com/canton/validator-mgmt/create-validator.html
+ * The URL slug is derived from the document's H1 header (title), not the filename.
+ * Example:
+ *   GitLab path: canton/modules/ROOT/pages/validator-mgmt/create-validator.adoc
+ *   H1 Header:   = Create Validator Integrated Keycloak
+ *   Live URL:    https://docs.example.com/canton/validator-mgmt/create-validator-integrated-keycloak.html
  */
 
 export interface UrlDerivationConfig {
@@ -16,8 +19,8 @@ export interface UrlDerivationConfig {
 export interface DerivedUrlInfo {
   product: string;      // e.g., "canton"
   subpath: string;      // e.g., "validator-mgmt"
-  filename: string;     // e.g., "create-validator"
-  fullUrl: string;      // e.g., "https://docs.example.com/canton/validator-mgmt/create-validator.html"
+  slug: string;         // e.g., "create-validator-integrated-keycloak" (from H1 header)
+  fullUrl: string;      // e.g., "https://docs.example.com/canton/validator-mgmt/create-validator-integrated-keycloak.html"
 }
 
 /**
@@ -30,15 +33,51 @@ const DEFAULT_PRODUCT_MAPPINGS: Record<string, string> = {
 };
 
 /**
- * Derive documentation URL from GitLab file path
+ * Slugify a title string for URL
+ * "Create Validator Integrated Keycloak" -> "create-validator-integrated-keycloak"
+ */
+export function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')     // Remove special chars except spaces and hyphens
+    .replace(/\s+/g, '-')          // Replace spaces with hyphens
+    .replace(/-+/g, '-')           // Collapse multiple hyphens
+    .replace(/^-|-$/g, '');        // Trim leading/trailing hyphens
+}
+
+/**
+ * Extract H1 header from AsciiDoc or Markdown content
+ * Returns the title text without the header prefix
+ */
+export function extractTitle(content: string): string | null {
+  // Try AsciiDoc format first: = Title
+  const asciidocMatch = content.match(/^=\s+(.+)$/m);
+  if (asciidocMatch && asciidocMatch[1]) {
+    return asciidocMatch[1].trim();
+  }
+
+  // Try Markdown format: # Title
+  const markdownMatch = content.match(/^#\s+(.+)$/m);
+  if (markdownMatch && markdownMatch[1]) {
+    return markdownMatch[1].trim();
+  }
+
+  return null;
+}
+
+/**
+ * Derive documentation URL from GitLab file path and document content
  *
  * @param gitlabPath - Full path in GitLab (e.g., "canton/modules/ROOT/pages/validator-mgmt/create-validator.adoc")
  * @param config - URL derivation configuration
+ * @param content - Optional document content to extract title from for URL slug
  * @returns Derived URL information
  */
 export function deriveDocumentationUrl(
   gitlabPath: string,
-  config: UrlDerivationConfig
+  config: UrlDerivationConfig,
+  content?: string
 ): DerivedUrlInfo {
   const { docsBaseUrl, productMappings = {} } = config;
   const mergedMappings = { ...DEFAULT_PRODUCT_MAPPINGS, ...productMappings };
@@ -68,7 +107,7 @@ export function deriveDocumentationUrl(
   // Find path after 'pages/'
   const pagesIndex = parts.indexOf('pages');
   let subpath = '';
-  let filename = '';
+  let filenameFromPath = '';
 
   if (pagesIndex >= 0 && pagesIndex < parts.length - 1) {
     // Everything after 'pages/' up to the last segment is the subpath
@@ -77,33 +116,43 @@ export function deriveDocumentationUrl(
     if (afterPages.length > 1) {
       // Has subfolders
       subpath = afterPages.slice(0, -1).join('/');
-      filename = afterPages[afterPages.length - 1] || '';
+      filenameFromPath = afterPages[afterPages.length - 1] || '';
     } else {
       // Just a filename
-      filename = afterPages[0] || '';
+      filenameFromPath = afterPages[0] || '';
     }
   } else {
     // Fallback: use last segment as filename
-    filename = parts[parts.length - 1] || '';
+    filenameFromPath = parts[parts.length - 1] || '';
   }
 
   // Remove extension from filename
-  filename = filename.replace(/\.(adoc|asciidoc|md|markdown|txt)$/i, '');
+  filenameFromPath = filenameFromPath.replace(/\.(adoc|asciidoc|md|markdown|txt)$/i, '');
+
+  // Get slug from document title (H1 header) if content is provided
+  // Otherwise fall back to filename
+  let slug = filenameFromPath;
+  if (content) {
+    const title = extractTitle(content);
+    if (title) {
+      slug = slugify(title);
+    }
+  }
 
   // Build full URL
   const baseUrl = docsBaseUrl.replace(/\/$/, ''); // Remove trailing slash
   let fullUrl: string;
 
   if (subpath) {
-    fullUrl = `${baseUrl}/${mappedProduct}/${subpath}/${filename}.html`;
+    fullUrl = `${baseUrl}/${mappedProduct}/${subpath}/${slug}.html`;
   } else {
-    fullUrl = `${baseUrl}/${mappedProduct}/${filename}.html`;
+    fullUrl = `${baseUrl}/${mappedProduct}/${slug}.html`;
   }
 
   return {
     product: mappedProduct,
     subpath,
-    filename,
+    slug,
     fullUrl,
   };
 }
