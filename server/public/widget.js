@@ -25,6 +25,13 @@
   let conversationId = null;
   let container = null;
   let messages = [];
+  let currentSizeLevel = 0; // 0 = default, 1 = 75%, 2 = fullscreen
+
+  const SIZE_LEVELS = [
+    { name: 'default', width: '380px', height: '520px', bottom: '72px', right: '0', borderRadius: '16px' },
+    { name: 'medium', width: '75vw', height: '75vh', bottom: '72px', right: '0', borderRadius: '16px' },
+    { name: 'fullscreen', width: '100vw', height: '100vh', bottom: '0', right: '0', borderRadius: '0' }
+  ];
 
   // CSS Styles
   const styles = `
@@ -111,6 +118,34 @@
     }
     .aiab-close:hover {
       opacity: 1;
+    }
+    .aiab-header-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .aiab-size-btn {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 4px;
+      opacity: 0.8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.2s;
+    }
+    .aiab-size-btn:hover:not(:disabled) {
+      opacity: 1;
+    }
+    .aiab-size-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .aiab-size-btn svg {
+      width: 18px;
+      height: 18px;
     }
     .aiab-messages {
       flex: 1;
@@ -289,11 +324,23 @@
             <span class="aiab-agent-name">${escapeHtml(config.title)}</span>
             <span class="aiab-powered-subtitle">Powered by AgenticLedger</span>
           </div>
-          <button class="aiab-close" id="aiab-close">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
+          <div class="aiab-header-controls">
+            <button class="aiab-size-btn" id="aiab-shrink" title="Shrink" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
+              </svg>
+            </button>
+            <button class="aiab-size-btn" id="aiab-expand" title="Expand">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+              </svg>
+            </button>
+            <button class="aiab-close" id="aiab-close">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="aiab-messages" id="aiab-messages"></div>
         <div class="aiab-input-area">
@@ -316,6 +363,8 @@
     // Event listeners
     document.getElementById('aiab-trigger').addEventListener('click', togglePanel);
     document.getElementById('aiab-close').addEventListener('click', closePanel);
+    document.getElementById('aiab-expand').addEventListener('click', expandSize);
+    document.getElementById('aiab-shrink').addEventListener('click', shrinkSize);
     document.getElementById('aiab-send').addEventListener('click', sendMessage);
     document.getElementById('aiab-input').addEventListener('keypress', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -418,6 +467,59 @@ function togglePanel() {
   function closePanel() {
     isOpen = false;
     document.getElementById('aiab-panel').classList.remove('open');
+    // Reset size to default when closing
+    if (currentSizeLevel !== 0) {
+      currentSizeLevel = 0;
+      applySize(0);
+    }
+  }
+
+  function applySize(level) {
+    const panel = document.getElementById('aiab-panel');
+    const size = SIZE_LEVELS[level];
+
+    panel.style.width = size.width;
+    panel.style.height = size.height;
+    panel.style.bottom = size.bottom;
+    panel.style.right = size.right;
+    panel.style.borderRadius = size.borderRadius;
+
+    // For fullscreen, also position the panel fixed to viewport
+    if (level === 2) {
+      panel.style.position = 'fixed';
+      panel.style.top = '0';
+      panel.style.left = '0';
+    } else {
+      panel.style.position = 'absolute';
+      panel.style.top = 'auto';
+      panel.style.left = 'auto';
+    }
+
+    updateSizeButtons();
+  }
+
+  function updateSizeButtons() {
+    const shrinkBtn = document.getElementById('aiab-shrink');
+    const expandBtn = document.getElementById('aiab-expand');
+
+    // Disable shrink at smallest size
+    shrinkBtn.disabled = currentSizeLevel === 0;
+    // Disable expand at largest size
+    expandBtn.disabled = currentSizeLevel === SIZE_LEVELS.length - 1;
+  }
+
+  function expandSize() {
+    if (currentSizeLevel < SIZE_LEVELS.length - 1) {
+      currentSizeLevel++;
+      applySize(currentSizeLevel);
+    }
+  }
+
+  function shrinkSize() {
+    if (currentSizeLevel > 0) {
+      currentSizeLevel--;
+      applySize(currentSizeLevel);
+    }
   }
 
   async function startConversation() {
