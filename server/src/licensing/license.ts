@@ -81,6 +81,7 @@ export function validateLicenseKey(licenseKey: string): LicenseValidationResult 
       mcpHub: decoded.features.mcpHub ?? BASE_FEATURES.mcpHub,
       allowedCapabilities: decoded.features.allowedCapabilities ?? BASE_FEATURES.allowedCapabilities,
       customBranding: decoded.features.customBranding ?? BASE_FEATURES.customBranding,
+      gitlabKbSync: decoded.features.gitlabKbSync ?? BASE_FEATURES.gitlabKbSync,
     };
 
     const result: LicenseValidationResult = {

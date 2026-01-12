@@ -1236,10 +1236,17 @@ adminRouter.get('/agents/:agentId/storage', async (req, res) => {
 adminRouter.get('/agents/:agentId/tools/gitlab', async (req, res) => {
   try {
     const { agentId } = req.params;
+    const features = getFeatures();
+
+    // Always return licensed status so frontend knows whether to show the UI
+    if (!features.gitlabKbSync) {
+      return res.json({ configured: false, licensed: false });
+    }
+
     const connection = await getGitLabConnection(agentId);
 
     if (!connection) {
-      return res.json({ configured: false });
+      return res.json({ configured: false, licensed: true });
     }
 
     // Get last refresh
@@ -1248,6 +1255,7 @@ adminRouter.get('/agents/:agentId/tools/gitlab', async (req, res) => {
 
     res.json({
       configured: true,
+      licensed: true,
       projectUrl: connection.projectUrl,
       branch: connection.branch,
       pathFilter: connection.pathFilter,
@@ -1267,6 +1275,13 @@ adminRouter.get('/agents/:agentId/tools/gitlab', async (req, res) => {
 // Save/update GitLab connection config
 adminRouter.post('/agents/:agentId/tools/gitlab', async (req, res) => {
   try {
+    const features = getFeatures();
+    if (!features.gitlabKbSync) {
+      return res.status(403).json({
+        error: 'GitLab KB Sync not licensed. Upgrade to enable this feature.',
+      });
+    }
+
     const { agentId } = req.params;
     const {
       projectUrl,
@@ -1347,6 +1362,13 @@ adminRouter.delete('/agents/:agentId/tools/gitlab', async (req, res) => {
 // Validate GitLab connection without saving
 adminRouter.post('/agents/:agentId/tools/gitlab/validate', async (req, res) => {
   try {
+    const features = getFeatures();
+    if (!features.gitlabKbSync) {
+      return res.status(403).json({
+        error: 'GitLab KB Sync not licensed. Upgrade to enable this feature.',
+      });
+    }
+
     const {
       projectUrl,
       accessToken,
@@ -1384,6 +1406,13 @@ adminRouter.post('/agents/:agentId/tools/gitlab/validate', async (req, res) => {
 // Trigger a KB refresh from GitLab
 adminRouter.post('/agents/:agentId/tools/gitlab/refresh', async (req, res) => {
   try {
+    const features = getFeatures();
+    if (!features.gitlabKbSync) {
+      return res.status(403).json({
+        error: 'GitLab KB Sync not licensed. Upgrade to enable this feature.',
+      });
+    }
+
     const { agentId } = req.params;
 
     // Check if connection exists

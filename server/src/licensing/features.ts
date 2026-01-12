@@ -24,6 +24,9 @@ export interface FeatureFlags {
 
   // Custom branding (if false, forces "Powered by AgenticLedger")
   customBranding: boolean;
+
+  // GitLab KB Sync (pull docs from GitLab to Knowledge Base)
+  gitlabKbSync: boolean;
 }
 
 /**
@@ -37,6 +40,7 @@ export const BASE_FEATURES: FeatureFlags = {
   mcpHub: false,
   allowedCapabilities: [],
   customBranding: false,
+  gitlabKbSync: false,
 };
 
 /**
@@ -50,6 +54,7 @@ export const FULL_FEATURES: FeatureFlags = {
   mcpHub: true,
   allowedCapabilities: ['*'], // Wildcard = all capabilities
   customBranding: true,
+  gitlabKbSync: true,
 };
 
 // Current features (set on startup)
@@ -120,6 +125,7 @@ function summarizeFeatures(f: FeatureFlags): string {
     parts.push(`mcpHub(caps:${caps})`);
   }
   if (f.customBranding) parts.push('customBranding');
+  if (f.gitlabKbSync) parts.push('gitlabKbSync');
 
   return parts.length > 0 ? parts.join(', ') : 'BASE (no features)';
 }

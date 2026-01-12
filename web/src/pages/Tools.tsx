@@ -79,6 +79,9 @@ export const Tools: React.FC<ToolsProps> = ({ apiBaseUrl, theme }) => {
   const [refreshHistory, setRefreshHistory] = useState<RefreshEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // License State
+  const [gitlabLicensed, setGitlabLicensed] = useState<boolean | null>(null); // null = loading
+
   const embedCode = `// Install the widget package
 // npm install @your-org/agentinabox-widget
 
@@ -139,6 +142,10 @@ ReactDOM.createRoot(document.getElementById('agentinabox-root')).render(
         const res = await fetch(`${apiBaseUrl}/api/admin/agents/${selectedAgentId}/tools/gitlab`);
         if (res.ok) {
           const data = await res.json();
+
+          // Check if feature is licensed
+          setGitlabLicensed(data.licensed !== false);
+
           if (data.configured) {
             // Backend returns config at top level, not nested under 'connection'
             setGitlabConnection({
@@ -453,7 +460,8 @@ ReactDOM.createRoot(document.getElementById('agentinabox-root')).render(
         </select>
       </div>
 
-      {/* GitLab KB Refresh Section (Collapsible) */}
+      {/* GitLab KB Refresh Section (Collapsible) - Only show if licensed */}
+      {gitlabLicensed && (
       <div
         style={{
           background: colors.bgCard,
@@ -1001,6 +1009,7 @@ ReactDOM.createRoot(document.getElementById('agentinabox-root')).render(
           </div>
         )}
       </div>
+      )}
 
       {/* Embed Code Section */}
       <div

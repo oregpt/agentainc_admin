@@ -70,6 +70,9 @@ function loadFeaturesFromEnv(): Partial<FeatureFlags> {
   const customBranding = parseBoolEnv(process.env.FEATURE_CUSTOM_BRANDING);
   if (customBranding !== undefined) features.customBranding = customBranding;
 
+  const gitlabKbSync = parseBoolEnv(process.env.FEATURE_GITLAB_KB_SYNC);
+  if (gitlabKbSync !== undefined) features.gitlabKbSync = gitlabKbSync;
+
   return features;
 }
 
