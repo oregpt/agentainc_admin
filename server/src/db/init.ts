@@ -222,6 +222,60 @@ async function createTablesIfNotExist(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_documents_category ON ai_documents(category)
   `).catch(() => {});
 
+  // ============================================================================
+  // GitLab KB Refresh Tables
+  // ============================================================================
+
+  // GitLab connections table
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ai_gitlab_connections (
+      id SERIAL PRIMARY KEY,
+      agent_id VARCHAR(64) NOT NULL UNIQUE,
+      project_url VARCHAR(500) NOT NULL,
+      access_token_encrypted TEXT NOT NULL,
+      token_iv VARCHAR(32),
+      branch VARCHAR(100) DEFAULT 'main',
+      path_filter VARCHAR(500) DEFAULT '/',
+      file_extensions JSONB,
+      convert_asciidoc INTEGER DEFAULT 1,
+      docs_base_url VARCHAR(500),
+      product_context VARCHAR(255),
+      product_mappings JSONB,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  // GitLab refreshes (history) table
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ai_gitlab_refreshes (
+      id SERIAL PRIMARY KEY,
+      agent_id VARCHAR(64) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'running',
+      started_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      completed_at TIMESTAMP,
+      files_processed INTEGER DEFAULT 0,
+      files_converted INTEGER DEFAULT 0,
+      files_skipped INTEGER DEFAULT 0,
+      error_message TEXT,
+      archive_path VARCHAR(500),
+      archive_size INTEGER,
+      commit_sha VARCHAR(40),
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )
+  `);
+
+  // Indexes for GitLab tables
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_gitlab_connections_agent ON ai_gitlab_connections(agent_id)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_gitlab_refreshes_agent ON ai_gitlab_refreshes(agent_id)
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_gitlab_refreshes_status ON ai_gitlab_refreshes(status)
+  `).catch(() => {});
+
   console.log('[db] All tables created/verified');
 }
 

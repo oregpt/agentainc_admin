@@ -164,3 +164,58 @@ export const documentTags = pgTable('ai_document_tags', {
   tagId: integer('tag_id').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// ============================================================================
+// GitLab KB Refresh - Sync documentation from GitLab repositories
+// ============================================================================
+
+// GitLab connection configuration (one per agent)
+export const gitlabConnections = pgTable('ai_gitlab_connections', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 64 }).notNull().unique(),
+
+  // GitLab Connection
+  projectUrl: varchar('project_url', { length: 500 }).notNull(),
+  accessTokenEncrypted: text('access_token_encrypted').notNull(),
+  tokenIv: varchar('token_iv', { length: 32 }),
+  branch: varchar('branch', { length: 100 }).default('main'),
+  pathFilter: varchar('path_filter', { length: 500 }).default('/'),
+
+  // Options
+  fileExtensions: jsonb('file_extensions'), // Array of extensions like ['.md', '.adoc']
+  convertAsciidoc: integer('convert_asciidoc').default(1),
+  docsBaseUrl: varchar('docs_base_url', { length: 500 }), // e.g., 'https://docs.example.com'
+  productContext: varchar('product_context', { length: 255 }), // e.g., 'Catalyst Blockchain Manager'
+
+  // Product mappings (e.g., {"catbm": "general"})
+  productMappings: jsonb('product_mappings'),
+
+  // Metadata
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// GitLab refresh history
+export const gitlabRefreshes = pgTable('ai_gitlab_refreshes', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 64 }).notNull(),
+
+  // Status
+  status: varchar('status', { length: 20 }).notNull().default('running'), // running | completed | failed
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+
+  // Results
+  filesProcessed: integer('files_processed').default(0),
+  filesConverted: integer('files_converted').default(0),
+  filesSkipped: integer('files_skipped').default(0),
+  errorMessage: text('error_message'),
+
+  // Archive
+  archivePath: varchar('archive_path', { length: 500 }),
+  archiveSize: integer('archive_size'),
+
+  // Metadata
+  commitSha: varchar('commit_sha', { length: 40 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});

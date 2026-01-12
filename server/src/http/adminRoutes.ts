@@ -10,6 +10,17 @@ import { capabilityService } from '../capabilities';
 import { getOrchestrator } from '../mcp-hub';
 import { eq, and, isNull, sql, inArray } from 'drizzle-orm';
 import { getFeatures, canCreateAgent, getLicensingStatus } from '../licensing';
+import {
+  getGitLabConnection,
+  saveGitLabConnection,
+  deleteGitLabConnection,
+  validateGitLabConnection,
+  getRefreshHistory,
+  getRefresh,
+  deleteRefresh,
+  executeRefresh,
+  getArchivePath,
+} from '../tools/gitlab';
 
 export const adminRouter = Router();
 
@@ -1214,5 +1225,271 @@ adminRouter.get('/agents/:agentId/storage', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load storage stats' });
+  }
+});
+
+// ============================================================================
+// GitLab KB Refresh Routes
+// ============================================================================
+
+// Get GitLab connection config for an agent
+adminRouter.get('/agents/:agentId/tools/gitlab', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const connection = await getGitLabConnection(agentId);
+
+    if (!connection) {
+      return res.json({ configured: false });
+    }
+
+    // Get last refresh
+    const history = await getRefreshHistory(agentId, 1);
+    const lastRefresh = history.length > 0 ? history[0] : null;
+
+    res.json({
+      configured: true,
+      projectUrl: connection.projectUrl,
+      branch: connection.branch,
+      pathFilter: connection.pathFilter,
+      fileExtensions: connection.fileExtensions,
+      convertAsciidoc: connection.convertAsciidoc,
+      docsBaseUrl: connection.docsBaseUrl,
+      productContext: connection.productContext,
+      productMappings: connection.productMappings,
+      lastRefresh,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to get GitLab connection' });
+  }
+});
+
+// Save/update GitLab connection config
+adminRouter.post('/agents/:agentId/tools/gitlab', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const {
+      projectUrl,
+      accessToken,
+      branch,
+      pathFilter,
+      fileExtensions,
+      convertAsciidoc,
+      docsBaseUrl,
+      productContext,
+      productMappings,
+    } = req.body as {
+      projectUrl: string;
+      accessToken: string;
+      branch?: string;
+      pathFilter?: string;
+      fileExtensions?: string[];
+      convertAsciidoc?: boolean;
+      docsBaseUrl?: string;
+      productContext?: string;
+      productMappings?: Record<string, string>;
+    };
+
+    if (!projectUrl || !accessToken) {
+      return res.status(400).json({ error: 'projectUrl and accessToken are required' });
+    }
+
+    // Validate connection first
+    const validation = await validateGitLabConnection({
+      projectUrl,
+      accessToken,
+      branch: branch || 'main',
+      pathFilter: pathFilter || '/',
+      fileExtensions: fileExtensions || ['.md', '.adoc'],
+      convertAsciidoc: convertAsciidoc !== false,
+    });
+
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error, validation });
+    }
+
+    // Save connection
+    await saveGitLabConnection(agentId, {
+      projectUrl,
+      accessToken,
+      branch: branch || 'main',
+      pathFilter: pathFilter || '/',
+      fileExtensions: fileExtensions || ['.md', '.adoc'],
+      convertAsciidoc: convertAsciidoc !== false,
+      docsBaseUrl,
+      productContext,
+      productMappings,
+    });
+
+    res.json({
+      success: true,
+      message: 'GitLab connection saved',
+      validation,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save GitLab connection' });
+  }
+});
+
+// Delete GitLab connection
+adminRouter.delete('/agents/:agentId/tools/gitlab', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    await deleteGitLabConnection(agentId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete GitLab connection' });
+  }
+});
+
+// Validate GitLab connection without saving
+adminRouter.post('/agents/:agentId/tools/gitlab/validate', async (req, res) => {
+  try {
+    const {
+      projectUrl,
+      accessToken,
+      branch,
+      pathFilter,
+      fileExtensions,
+    } = req.body as {
+      projectUrl: string;
+      accessToken: string;
+      branch?: string;
+      pathFilter?: string;
+      fileExtensions?: string[];
+    };
+
+    if (!projectUrl || !accessToken) {
+      return res.status(400).json({ error: 'projectUrl and accessToken are required' });
+    }
+
+    const validation = await validateGitLabConnection({
+      projectUrl,
+      accessToken,
+      branch: branch || 'main',
+      pathFilter: pathFilter || '/',
+      fileExtensions: fileExtensions || ['.md', '.adoc'],
+      convertAsciidoc: true,
+    });
+
+    res.json(validation);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to validate GitLab connection' });
+  }
+});
+
+// Trigger a KB refresh from GitLab
+adminRouter.post('/agents/:agentId/tools/gitlab/refresh', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Check if connection exists
+    const connection = await getGitLabConnection(agentId);
+    if (!connection) {
+      return res.status(400).json({ error: 'GitLab connection not configured' });
+    }
+
+    // Start refresh in background and return immediately
+    res.json({
+      message: 'Refresh started',
+      status: 'running',
+    });
+
+    // Execute refresh (this will update the database as it progresses)
+    executeRefresh(agentId).catch((err) => {
+      console.error('Refresh error:', err);
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to start refresh' });
+  }
+});
+
+// Get refresh status/history
+adminRouter.get('/agents/:agentId/tools/gitlab/refreshes', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const history = await getRefreshHistory(agentId, limit);
+    res.json({ refreshes: history });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to get refresh history' });
+  }
+});
+
+// Get specific refresh status
+adminRouter.get('/agents/:agentId/tools/gitlab/refresh/:refreshId', async (req, res) => {
+  try {
+    const refreshId = parseInt(req.params.refreshId);
+    const refresh = await getRefresh(refreshId);
+
+    if (!refresh) {
+      return res.status(404).json({ error: 'Refresh not found' });
+    }
+
+    res.json({ refresh });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to get refresh status' });
+  }
+});
+
+// Download archive from a refresh
+adminRouter.get('/agents/:agentId/tools/gitlab/refreshes/:refreshId/download', async (req, res) => {
+  try {
+    const refreshId = parseInt(req.params.refreshId);
+    const refresh = await getRefresh(refreshId);
+
+    if (!refresh || !refresh.archivePath) {
+      return res.status(404).json({ error: 'Archive not found' });
+    }
+
+    const archivePath = getArchivePath(refresh.archivePath);
+    if (!archivePath) {
+      return res.status(404).json({ error: 'Archive file not found' });
+    }
+
+    res.download(archivePath, path.basename(archivePath));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to download archive' });
+  }
+});
+
+// Delete a refresh entry and its archive
+adminRouter.delete('/agents/:agentId/tools/gitlab/refreshes/:refreshId', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const refreshId = parseInt(req.params.refreshId);
+    const refresh = await getRefresh(refreshId);
+
+    if (!refresh) {
+      return res.status(404).json({ error: 'Refresh not found' });
+    }
+
+    // Verify refresh belongs to this agent
+    if (refresh.agentId !== agentId) {
+      return res.status(403).json({ error: 'Refresh does not belong to this agent' });
+    }
+
+    // Delete archive file if exists
+    if (refresh.archivePath) {
+      const archivePath = getArchivePath(refresh.archivePath);
+      if (archivePath && fs.existsSync(archivePath)) {
+        fs.unlinkSync(archivePath);
+      }
+    }
+
+    // Delete from database
+    await deleteRefresh(refreshId);
+
+    res.json({ success: true, message: 'Refresh entry deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete refresh' });
   }
 });
