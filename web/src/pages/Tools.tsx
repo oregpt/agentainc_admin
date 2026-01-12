@@ -139,16 +139,17 @@ ReactDOM.createRoot(document.getElementById('agentinabox-root')).render(
         const res = await fetch(`${apiBaseUrl}/api/admin/agents/${selectedAgentId}/tools/gitlab`);
         if (res.ok) {
           const data = await res.json();
-          if (data.connection) {
+          if (data.configured) {
+            // Backend returns config at top level, not nested under 'connection'
             setGitlabConnection({
-              projectUrl: data.connection.projectUrl || '',
-              branch: data.connection.branch || 'main',
-              pathFilter: data.connection.pathFilter || '/',
-              fileExtensions: data.connection.fileExtensions || ['.md', '.adoc'],
-              convertAsciidoc: data.connection.convertAsciidoc ?? true,
-              docsBaseUrl: data.connection.docsBaseUrl || '',
-              productContext: data.connection.productContext || '',
-              productMappings: data.connection.productMappings,
+              projectUrl: data.projectUrl || '',
+              branch: data.branch || 'main',
+              pathFilter: data.pathFilter || '/',
+              fileExtensions: data.fileExtensions || ['.md', '.adoc'],
+              convertAsciidoc: data.convertAsciidoc ?? true,
+              docsBaseUrl: data.docsBaseUrl || '',
+              productContext: data.productContext || '',
+              productMappings: data.productMappings,
             });
             setHasExistingConnection(true);
           } else {
